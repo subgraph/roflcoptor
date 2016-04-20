@@ -45,7 +45,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -58,17 +57,17 @@ import (
 )
 
 const (
-	defaultLogFile    = "or-ctl-filter.log"
-	defaultConfigFile = "or-ctl-filter.json"
+	defaultLogFile     = "or-ctl-filter.log"
+	defaultFiltersPath = "./filters"
 
-	controlSocketFile = "/var/run/tor/control"
-	torControlAddr    = "127.0.0.1:8851" // Match ControlPort in torrc-defaults.
+	controlSocketFile  = "/var/run/tor/control"
+	torControlAddr     = "127.0.0.1:8851" // Match ControlPort in torrc-defaults.
 
-	cmdProtocolInfo  = "PROTOCOLINFO"
-	cmdAuthenticate  = "AUTHENTICATE"
-	cmdAuthChallenge = "AUTHCHALLENGE"
-	cmdGetInfo       = "GETINFO"
-	cmdSignal        = "SIGNAL"
+	cmdProtocolInfo    = "PROTOCOLINFO"
+	cmdAuthenticate    = "AUTHENTICATE"
+	cmdAuthChallenge   = "AUTHCHALLENGE"
+	cmdGetInfo         = "GETINFO"
+	cmdSignal          = "SIGNAL"
 
 	argSignalNewnym = "NEWNYM"
 	argGetinfoSocks = "net/listeners/socks"
@@ -94,25 +93,6 @@ const (
 )
 
 var filteredControlAddr *net.UnixAddr
-
-type ServerClientFilterConfig struct {
-	ClientAllowed             []string          `json:"client-allowed"`
-	ClientAllowedPrefixes     []string          `json:"client-allowed-prefixes"`
-	ClientReplacements        map[string]string `json:"client-replacements"`
-	ClientReplacementPrefixes map[string]string `json:"client-replacement-prefixes"`
-
-	ServerAllowed             []string          `json:"server-allowed"`
-	ServerAllowedPrefixes     []string          `json:"server-allowed-prefixes"`
-	ServerReplacements        map[string]string `json:"server-replacements"`
-	ServerReplacementPrefixes map[string]string `json:"server-replacement-prefixes"`
-}
-
-type FilterConfig struct {
-	Allowed             []string          `json:"allowed"`
-	AllowedPrefixes     []string          `json:"allowed-prefixes"`
-	Replacements        map[string]string `json:"replacements"`
-	ReplacementPrefixes map[string]string `json:"replacement-prefixes"`
-}
 
 func hasReplacementCommand(cmd string, replacements map[string]string) (string, bool) {
 	log.Print("maybeReplaceCommand\n")
@@ -473,38 +453,30 @@ func filterConnection(appConn net.Conn, filterConfig *ServerClientFilterConfig) 
 func main() {
 	var enableLogging bool
 	var logFile string
-	var configFile string
-	var filterConfig ServerClientFilterConfig
 	var listenPort, listenIp string
 	var err error
 
 	flag.BoolVar(&enableLogging, "enable-logging", false, "enable logging")
 	flag.StringVar(&logFile, "log-file", defaultLogFile, "log file")
-	flag.StringVar(&configFile, "config-file", defaultConfigFile, "filtration config file")
 	flag.StringVar(&listenPort, "listen-port", "", "TCP port to listen on")
 	flag.StringVar(&listenIp, "listen-ip", "", "IP address to listen on")
 	flag.Parse()
 
-	// Deal with filtration configuration.
-	if configFile != "" {
-		file, e := ioutil.ReadFile(configFile)
-		if e != nil {
-			panic("failed to read JSON filter config")
-		}
-		json.Unmarshal(file, &filterConfig)
-	} else {
-		panic("no filter config specified")
-	}
-
 	// Deal with logging.
 	if !enableLogging {
 		log.SetOutput(ioutil.Discard)
+	} else if logFile == "-" {
+		log.SetOutput(os.Stderr)
 	} else if logFile != "" {
 		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
 			log.Fatalf("Failed to create log file: %s\n", err)
 		}
 		log.SetOutput(f)
+	}
+
+	if _, err = loadFilters(defaultFiltersPath); err != nil {
+		log.Fatalf("Unable to load filters: %s\n", err)
 	}
 
 	filteredControlAddr, err = net.ResolveUnixAddr("unix", controlSocketFile)
@@ -534,17 +506,28 @@ func main() {
 
 		dstIp = net.ParseIP(listenIp)
 		if dstIp == nil {
-			panic("net.ParseIP fail")
+			log.Printf("net.ParseIP fail for: %s\n", listenIp)
+			continue
 		}
 
-		aP, _ := strconv.ParseUint(port_str, 10, 16)
-		bP, _ := strconv.ParseUint(listenPort, 10, 16)
-		procInfo := proc.LookupTCPSocketProcess(uint16(aP), dstIp, uint16(bP))
+		srcP, _ := strconv.ParseUint(port_str, 10, 16)
+		dstP, _ := strconv.ParseUint(listenPort, 10, 16)
+		procInfo := proc.LookupTCPSocketProcess(uint16(srcP), dstIp, uint16(dstP))
 		if procInfo == nil {
-			panic("No proc found")
+			log.Printf("Could not find process information for: %d %s %d\n", srcP, dstIp, dstP)
+			conn.Close()
+			continue
 		}
 
-		fmt.Printf("proc info: uid %d pid %d execPath %s CmdLine %s\n", procInfo.Uid, procInfo.Pid, procInfo.ExePath, procInfo.CmdLine)
-		go filterConnection(conn, &filterConfig)
+		//log.Printf("proc info: uid %d pid %d execPath %s CmdLine %s\n", procInfo.Uid, procInfo.Pid, procInfo.ExePath, procInfo.CmdLine)
+		if filter := getFilterForPathAndUid(procInfo.ExePath, procInfo.Uid); filter != nil {
+			go filterConnection(conn, filter)
+		} else if filter := getFilterForPath(procInfo.ExePath); filter != nil {
+			go filterConnection(conn, filter)
+		} else {
+			log.Printf("No filters found for: %s (%d)\n", procInfo.ExePath, procInfo.Uid)
+			// Deny command...
+			conn.Close()
+		}
 	}
 }
