@@ -454,6 +454,7 @@ func main() {
 
 	fmt.Println(config)
 
+	log.SetPrefix("ROFLCopTor ")
 	if config.LogFile == "-" {
 		log.SetOutput(os.Stderr)
 	} else if config.LogFile != "" {

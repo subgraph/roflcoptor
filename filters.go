@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -60,7 +59,7 @@ func loadFilters(dpath string) ([]*ServerClientFilterConfig, error) {
 					log.Printf("error loading '%s': %v", f.Name(), err)
 					continue
 				}
-				fmt.Printf("Loaded filter for: %s (%d)\n", ff.ExecPath, ff.UserID)
+				log.Printf("Loaded filter for: %s (%d)\n", ff.ExecPath, ff.UserID)
 				lf = append(lf, ff)
 			}
 		}
