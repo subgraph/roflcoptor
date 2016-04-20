@@ -93,55 +93,6 @@ const (
 
 var filteredControlAddr *net.UnixAddr
 
-func hasReplacementCommand(cmd string, replacements map[string]string) (string, bool) {
-	log.Print("maybeReplaceCommand\n")
-	replacement, ok := replacements[cmd]
-	if ok {
-		log.Printf("%v true", replacement)
-		return replacement, true
-	} else {
-		log.Printf("%v false", replacement)
-		return cmd, false
-	}
-}
-
-func hasReplacementPrefix(cmd string, replacements map[string]string) (string, bool) {
-	log.Print("hasReplacementPrefix")
-	for prefix, replacement := range replacements {
-		log.Printf("does cmd %s contain prefix %s\n", cmd, prefix)
-		if strings.HasPrefix(cmd, prefix) {
-			log.Print("true")
-			return replacement, true
-		}
-	}
-	log.Print("false")
-	return cmd, false
-}
-
-func isCommandAllowed(cmd string, allowed []string) bool {
-	log.Print("isCommandAllowed")
-	for i := 0; i < len(allowed); i++ {
-		if cmd == allowed[i] {
-			log.Print("true")
-			return true
-		}
-	}
-	log.Print("false")
-	return false
-}
-
-func isPrefixAllowed(cmd string, allowed []string) bool {
-	log.Print("isPrefixAllowed")
-	for i := 0; i < len(allowed); i++ {
-		if strings.HasPrefix(cmd, allowed[i]) {
-			log.Print("true")
-			return true
-		}
-	}
-	log.Print("false")
-	return false
-}
-
 func readAuthCookie(path string) ([]byte, error) {
 	log.Print("read auth cookie")
 	// Read the cookie auth file.

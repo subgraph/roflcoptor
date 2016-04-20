@@ -10,7 +10,6 @@ import (
 	"path"
 	"regexp"
 	"strings"
-	"syscall"
 )
 
 var commentRegexp = regexp.MustCompile("^[ \t]*#")
@@ -114,26 +113,51 @@ func getFilterForPathAndUid(path string, uid int) *ServerClientFilterConfig {
 	return nil
 }
 
-func checkConfigPermissions(fpath string) error {
-	pd := path.Dir(fpath)
-	for _, fp := range []string{pd, fpath} {
-		if err := checkPathRootPermissions(fp); err != nil {
-			return fmt.Errorf("file `%s` is %s", fp, err)
-		}
+func hasReplacementCommand(cmd string, replacements map[string]string) (string, bool) {
+	log.Print("maybeReplaceCommand\n")
+	replacement, ok := replacements[cmd]
+	if ok {
+		log.Printf("%v true", replacement)
+		return replacement, true
+	} else {
+		log.Printf("%v false", replacement)
+		return cmd, false
 	}
-	return nil
 }
 
-func checkPathRootPermissions(fpath string) error {
-	fstat, err := os.Stat(fpath)
-	if err != nil {
-		return err
+func hasReplacementPrefix(cmd string, replacements map[string]string) (string, bool) {
+	log.Print("hasReplacementPrefix")
+	for prefix, replacement := range replacements {
+		log.Printf("does cmd %s contain prefix %s\n", cmd, prefix)
+		if strings.HasPrefix(cmd, prefix) {
+			log.Print("true")
+			return replacement, true
+		}
 	}
-	if (fstat.Mode().Perm() & syscall.S_IWOTH) != 0 {
-		return fmt.Errorf("writable by everyone!")
+	log.Print("false")
+	return cmd, false
+}
+
+func isCommandAllowed(cmd string, allowed []string) bool {
+	log.Print("isCommandAllowed")
+	for i := 0; i < len(allowed); i++ {
+		if cmd == allowed[i] {
+			log.Print("true")
+			return true
+		}
 	}
-	if (fstat.Mode().Perm()&syscall.S_IWGRP) != 0 && fstat.Sys().(*syscall.Stat_t).Gid != 0 {
-		return fmt.Errorf("writable by someone else than root!")
+	log.Print("false")
+	return false
+}
+
+func isPrefixAllowed(cmd string, allowed []string) bool {
+	log.Print("isPrefixAllowed")
+	for i := 0; i < len(allowed); i++ {
+		if strings.HasPrefix(cmd, allowed[i]) {
+			log.Print("true")
+			return true
+		}
 	}
-	return nil
+	log.Print("false")
+	return false
 }
