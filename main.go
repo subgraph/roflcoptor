@@ -48,6 +48,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -90,8 +91,6 @@ const (
 	errAuthenticationRequired = "514 Authentication required\n"
 	errUnrecognizedCommand    = "510 Unrecognized command\n"
 )
-
-var filteredControlAddr *net.UnixAddr
 
 func readAuthCookie(path string) ([]byte, error) {
 	log.Print("read auth cookie")
@@ -298,7 +297,7 @@ func filterCommand(cmd, failureCmd string, writeFunc func([]byte) (int, error), 
 	}
 }
 
-func filterConnection(appConn net.Conn, filterConfig *ServerClientFilterConfig) {
+func filterConnection(appConn net.Conn, filteredControlAddr *net.UnixAddr, filterConfig *ServerClientFilterConfig) {
 	defer appConn.Close()
 
 	clientAddr := appConn.RemoteAddr()
@@ -400,42 +399,74 @@ func filterConnection(appConn net.Conn, filterConfig *ServerClientFilterConfig) 
 	}
 }
 
+type RoflcoptorConfig struct {
+	LogFile              string
+	FiltersPath          string
+	ListenTCPPort        string
+	ListenIP             string
+	TorControlSocketPath string
+}
+
+func loadConfiguration(configFilePath string) (*RoflcoptorConfig, error) {
+	config := RoflcoptorConfig{}
+	file, err := os.Open(configFilePath)
+	if err != nil {
+		return nil, err
+	}
+	scanner := bufio.NewScanner(file)
+	bs := ""
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !commentRegexp.MatchString(line) {
+			bs += line + "\n"
+		}
+	}
+	if err := json.Unmarshal([]byte(bs), &config); err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
 func main() {
-	var enableLogging bool
-	var logFile string
-	var listenPort, listenIP string
+	var configFilePath string
+	var watchMode bool
+	var filteredControlAddr *net.UnixAddr
+	var config *RoflcoptorConfig
 	var err error
 
-	flag.BoolVar(&enableLogging, "enable-logging", false, "enable logging")
-	flag.StringVar(&logFile, "log-file", defaultLogFile, "log file")
-	flag.StringVar(&listenPort, "listen-port", "", "TCP port to listen on")
-	flag.StringVar(&listenIP, "listen-ip", "", "IP address to listen on")
+	flag.StringVar(&configFilePath, "config", "", "configuration file")
+	flag.BoolVar(&watchMode, "watch", false, "watch-mode of operation will default to unfiltered-allow policy")
 	flag.Parse()
 
-	// Deal with logging.
-	if !enableLogging {
-		log.SetOutput(ioutil.Discard)
-	} else if logFile == "-" {
+	// Load configuration file
+	config, err = loadConfiguration(configFilePath)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(config)
+
+	if config.LogFile == "-" {
 		log.SetOutput(os.Stderr)
-	} else if logFile != "" {
-		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	} else if config.LogFile != "" {
+		f, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 		if err != nil {
 			log.Fatalf("Failed to create log file: %s\n", err)
 		}
 		log.SetOutput(f)
 	}
 
-	if _, err = loadFilters(defaultFiltersPath); err != nil {
+	if _, err = loadFilters(config.FiltersPath); err != nil {
 		log.Fatalf("Unable to load filters: %s\n", err)
 	}
 
-	filteredControlAddr, err = net.ResolveUnixAddr("unix", controlSocketFile)
+	filteredControlAddr, err = net.ResolveUnixAddr("unix", config.TorControlSocketPath)
 	if err != nil {
 		log.Fatalf("Failed to resolve the control port: %s\n", err)
 	}
 
 	// Initialize the listener
-	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%s", listenIP, listenPort))
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%s", config.ListenIP, config.ListenTCPPort))
 	if err != nil {
 		log.Fatalf("Failed to listen on the filter port: %s\n", err)
 	}
@@ -454,14 +485,14 @@ func main() {
 		fields := strings.Split(conn.RemoteAddr().String(), ":")
 		dstPortStr := fields[1]
 
-		dstIP = net.ParseIP(listenIP)
+		dstIP = net.ParseIP(config.ListenIP)
 		if dstIP == nil {
-			log.Printf("net.ParseIP fail for: %s\n", listenIP)
+			log.Printf("net.ParseIP fail for: %s\n", config.ListenIP)
 			continue
 		}
 
 		srcP, _ := strconv.ParseUint(dstPortStr, 10, 16)
-		dstP, _ := strconv.ParseUint(listenPort, 10, 16)
+		dstP, _ := strconv.ParseUint(config.ListenTCPPort, 10, 16)
 		procInfo := proc.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
 		if procInfo == nil {
 			log.Printf("Could not find process information for: %d %s %d\n", srcP, dstIP, dstP)
@@ -471,9 +502,9 @@ func main() {
 
 		//log.Printf("proc info: uid %d pid %d execPath %s CmdLine %s\n", procInfo.Uid, procInfo.Pid, procInfo.ExePath, procInfo.CmdLine)
 		if filter := getFilterForPathAndUID(procInfo.ExePath, procInfo.Uid); filter != nil {
-			go filterConnection(conn, filter)
+			go filterConnection(conn, filteredControlAddr, filter)
 		} else if filter := getFilterForPath(procInfo.ExePath); filter != nil {
-			go filterConnection(conn, filter)
+			go filterConnection(conn, filteredControlAddr, filter)
 		} else {
 			log.Printf("No filters found for: %s (%d)\n", procInfo.ExePath, procInfo.Uid)
 			// Deny command...
