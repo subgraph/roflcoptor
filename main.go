@@ -496,6 +496,7 @@ func main() {
 		dstIP = net.ParseIP(config.ListenIP)
 		if dstIP == nil {
 			log.Printf("net.ParseIP fail for: %s\n", config.ListenIP)
+			conn.Close()
 			continue
 		}
 
