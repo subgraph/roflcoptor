@@ -1,0 +1,7 @@
+# ROFLCopTor
+
+ROFLCopTor aims to be an exhaustive Tor control port filter daemon written in golang.
+
+# Acknowledgements
+
+ROFLCopTor is derived from @Yawning's [or-ctl-filter](https://github.com/Yawning/or-ctl-filter) and @david415's [or-ctl-sieve](https://github.com/david415/or-ctl-sieve).
