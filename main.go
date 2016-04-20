@@ -69,13 +69,9 @@ const (
 	cmdProtocolInfo  = "PROTOCOLINFO"
 	cmdAuthenticate  = "AUTHENTICATE"
 	cmdAuthChallenge = "AUTHCHALLENGE"
-	cmdGetInfo       = "GETINFO"
-	cmdSignal        = "SIGNAL"
 
-	argSignalNewnym = "NEWNYM"
-	argGetinfoSocks = "net/listeners/socks"
-	argServerHash   = "SERVERHASH="
-	argServerNonce  = "SERVERNONCE="
+	argServerHash  = "SERVERHASH="
+	argServerNonce = "SERVERNONCE="
 
 	respProtocolInfoAuth       = "250-AUTH"
 	respProtocolInfoMethods    = "METHODS="
