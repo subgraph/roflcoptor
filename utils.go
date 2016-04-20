@@ -23,10 +23,10 @@ func checkPathRootPermissions(fpath string) error {
 		return err
 	}
 	if (fstat.Mode().Perm() & syscall.S_IWOTH) != 0 {
-		return fmt.Errorf("writable by everyone!")
+		return fmt.Errorf("writable by everyone")
 	}
 	if (fstat.Mode().Perm()&syscall.S_IWGRP) != 0 && fstat.Sys().(*syscall.Stat_t).Gid != 0 {
-		return fmt.Errorf("writable by someone else than root!")
+		return fmt.Errorf("writable by someone else than root")
 	}
 	return nil
 }

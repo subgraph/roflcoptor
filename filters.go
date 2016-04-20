@@ -14,6 +14,7 @@ import (
 
 var commentRegexp = regexp.MustCompile("^[ \t]*#")
 
+// ServerClientFilterConfig defines an application filter policy
 type ServerClientFilterConfig struct {
 	ExecPath                  string            `json:"exec-path"`
 	UserID                    int               `json:"user-id",omitempty`
@@ -28,6 +29,7 @@ type ServerClientFilterConfig struct {
 	ServerReplacementPrefixes map[string]string `json:"server-replacement-prefixes"`
 }
 
+// FilterConfig defines a return filter policy
 type FilterConfig struct {
 	Allowed             []string          `json:"allowed"`
 	AllowedPrefixes     []string          `json:"allowed-prefixes"`
@@ -104,7 +106,7 @@ func getFilterForPath(path string) *ServerClientFilterConfig {
 	return nil
 }
 
-func getFilterForPathAndUid(path string, uid int) *ServerClientFilterConfig {
+func getFilterForPathAndUID(path string, uid int) *ServerClientFilterConfig {
 	for _, filter := range loadedFilters {
 		if filter.ExecPath == path && filter.UserID == uid {
 			return filter
@@ -119,10 +121,9 @@ func hasReplacementCommand(cmd string, replacements map[string]string) (string, 
 	if ok {
 		log.Printf("%v true", replacement)
 		return replacement, true
-	} else {
-		log.Printf("%v false", replacement)
-		return cmd, false
 	}
+	log.Printf("%v false", replacement)
+	return cmd, false
 }
 
 func hasReplacementPrefix(cmd string, replacements map[string]string) (string, bool) {

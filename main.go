@@ -403,13 +403,13 @@ func filterConnection(appConn net.Conn, filterConfig *ServerClientFilterConfig) 
 func main() {
 	var enableLogging bool
 	var logFile string
-	var listenPort, listenIp string
+	var listenPort, listenIP string
 	var err error
 
 	flag.BoolVar(&enableLogging, "enable-logging", false, "enable logging")
 	flag.StringVar(&logFile, "log-file", defaultLogFile, "log file")
 	flag.StringVar(&listenPort, "listen-port", "", "TCP port to listen on")
-	flag.StringVar(&listenIp, "listen-ip", "", "IP address to listen on")
+	flag.StringVar(&listenIP, "listen-ip", "", "IP address to listen on")
 	flag.Parse()
 
 	// Deal with logging.
@@ -435,7 +435,7 @@ func main() {
 	}
 
 	// Initialize the listener
-	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%s", listenIp, listenPort))
+	ln, err := net.Listen("tcp", fmt.Sprintf("%s:%s", listenIP, listenPort))
 	if err != nil {
 		log.Fatalf("Failed to listen on the filter port: %s\n", err)
 	}
@@ -449,28 +449,28 @@ func main() {
 			continue
 		}
 
-		var dstIp net.IP
+		var dstIP net.IP
 
 		fields := strings.Split(conn.RemoteAddr().String(), ":")
-		port_str := fields[1]
+		dstPortStr := fields[1]
 
-		dstIp = net.ParseIP(listenIp)
-		if dstIp == nil {
-			log.Printf("net.ParseIP fail for: %s\n", listenIp)
+		dstIP = net.ParseIP(listenIP)
+		if dstIP == nil {
+			log.Printf("net.ParseIP fail for: %s\n", listenIP)
 			continue
 		}
 
-		srcP, _ := strconv.ParseUint(port_str, 10, 16)
+		srcP, _ := strconv.ParseUint(dstPortStr, 10, 16)
 		dstP, _ := strconv.ParseUint(listenPort, 10, 16)
-		procInfo := proc.LookupTCPSocketProcess(uint16(srcP), dstIp, uint16(dstP))
+		procInfo := proc.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
 		if procInfo == nil {
-			log.Printf("Could not find process information for: %d %s %d\n", srcP, dstIp, dstP)
+			log.Printf("Could not find process information for: %d %s %d\n", srcP, dstIP, dstP)
 			conn.Close()
 			continue
 		}
 
 		//log.Printf("proc info: uid %d pid %d execPath %s CmdLine %s\n", procInfo.Uid, procInfo.Pid, procInfo.ExePath, procInfo.CmdLine)
-		if filter := getFilterForPathAndUid(procInfo.ExePath, procInfo.Uid); filter != nil {
+		if filter := getFilterForPathAndUID(procInfo.ExePath, procInfo.Uid); filter != nil {
 			go filterConnection(conn, filter)
 		} else if filter := getFilterForPath(procInfo.ExePath); filter != nil {
 			go filterConnection(conn, filter)
