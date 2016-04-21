@@ -121,6 +121,7 @@ func (s *ProxySession) getFilterPolicy() (*ServerClientFilterConfig, error) {
 	srcP, _ := strconv.ParseUint(dstPortStr, 10, 16)
 	dstP, _ := strconv.ParseUint(s.cfg.ListenTCPPort, 10, 16)
 	procInfo := proc.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
+	log.Printf("proc exec path: %s\n", procInfo.ExePath)
 	if procInfo == nil {
 		s.appConn.Close()
 		return nil, fmt.Errorf("Could not find process information for: %d %s %d\n", srcP, dstIP, dstP)
