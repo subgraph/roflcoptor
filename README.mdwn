@@ -19,4 +19,4 @@ the socket inode via the Linux proc filesystem.
 
 # Acknowledgements
 
-ROFLCopTor is derived from @Yawning's [or-ctl-filter](https://github.com/Yawning/or-ctl-filter) and @david415's [or-ctl-sieve](https://github.com/david415/or-ctl-sieve).
+ROFLCopTor is derived from @Yawning's [or-ctl-filter](https://github.com/Yawning/or-ctl-filter) and @david415's [or-ctl-sieve](https://github.com/david415/or-ctl-sieve) which was derived from collaboration with Leif Ryge in making this proof of concept filter [twistedcat-armfilter-hax](https://github.com/david415/twistedcat/tree/armfilter-hax).
