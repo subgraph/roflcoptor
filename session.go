@@ -40,12 +40,12 @@ func NewProxyListener(cfg *RoflcoptorConfig, wg *sync.WaitGroup, watch bool) (*P
 func (p *ProxyListener) InitAllListeners() {
 	// XXX TODO add UNIX domain socket listener
 	p.wg.Add(1)
-	p.FilterTcpAcceptLoop()
+	p.FilterTCPAcceptLoop()
 }
 
-// FilterAcceptLoop and listens and accepts new
+// FilterTCPAcceptLoop and listens and accepts new
 // connections and passes them into our filter proxy pipeline
-func (p *ProxyListener) FilterTcpAcceptLoop() {
+func (p *ProxyListener) FilterTCPAcceptLoop() {
 	defer p.wg.Done()
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", p.cfg.ListenIP, p.cfg.ListenTCPPort))
@@ -92,6 +92,8 @@ type ProxySession struct {
 	sync.WaitGroup
 }
 
+// NewProxySession creates a ProxySession given a client's connection
+// to our proxy listener and a watch bool.
 func NewProxySession(cfg *RoflcoptorConfig, conn net.Conn, watch bool) *ProxySession {
 	s := &ProxySession{
 		cfg:           cfg,

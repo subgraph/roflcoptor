@@ -50,6 +50,8 @@ import (
 	"sync"
 )
 
+// RoflcoptorConfig is used to configure our
+// tor contorl port filtering proxy daemon
 type RoflcoptorConfig struct {
 	LogFile              string
 	FiltersPath          string
