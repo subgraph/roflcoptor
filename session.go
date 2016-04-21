@@ -1,9 +1,6 @@
 package main
 
 import (
-	"github.com/subgraph/fw-daemon/proc"
-	"github.com/yawning/bulb"
-
 	"bufio"
 	"fmt"
 	"log"
@@ -11,6 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/subgraph/go-procsnitch"
+	"github.com/yawning/bulb"
 )
 
 // ProxyListener is used to listen for
@@ -122,18 +122,18 @@ func (s *ProxySession) getFilterPolicy() (*ServerClientFilterConfig, error) {
 
 	srcP, _ := strconv.ParseUint(dstPortStr, 10, 16)
 	dstP, _ := strconv.ParseUint(s.cfg.ListenTCPPort, 10, 16)
-	procInfo := proc.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
+	procInfo := procsnitch.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
 	log.Printf("proc exec path: %s\n", procInfo.ExePath)
 	if procInfo == nil {
 		s.appConn.Close()
 		return nil, fmt.Errorf("Could not find process information for: %d %s %d\n", srcP, dstIP, dstP)
 	}
 
-	filter := getFilterForPathAndUID(procInfo.ExePath, procInfo.Uid)
+	filter := getFilterForPathAndUID(procInfo.ExePath, procInfo.UID)
 	if filter == nil {
 		filter = getFilterForPath(procInfo.ExePath)
 	} else {
-		log.Printf("No filters found for: %s (%d)\n", procInfo.ExePath, procInfo.Uid)
+		log.Printf("No filters found for: %s (%d)\n", procInfo.ExePath, procInfo.UID)
 		filter = nil
 	}
 	return filter, nil
