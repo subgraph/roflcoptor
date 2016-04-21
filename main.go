@@ -297,9 +297,10 @@ func filterCommand(cmd, failureCmd string, writeFunc func([]byte) (int, error), 
 	}
 }
 
-func filterConnection(appConn net.Conn, filteredControlAddr *net.UnixAddr, filterConfig *ServerClientFilterConfig) {
+func filterConnection(appConn net.Conn, filteredControlAddr *net.UnixAddr, filterConfig *ServerClientFilterConfig, watch bool) {
 	defer appConn.Close()
 
+	fmt.Print("filterConnection")
 	clientAddr := appConn.RemoteAddr()
 	log.Printf("New app connection from: %s\n", clientAddr)
 
@@ -345,14 +346,19 @@ func filterConnection(appConn net.Conn, filteredControlAddr *net.UnixAddr, filte
 			}
 			lineStr := strings.TrimSpace(string(line))
 			log.Printf("A<-T: [%s]\n", lineStr)
-
-			serverFilterConfig := FilterConfig{
-				Allowed:             filterConfig.ServerAllowed,
-				AllowedPrefixes:     filterConfig.ServerAllowedPrefixes,
-				Replacements:        filterConfig.ServerReplacements,
-				ReplacementPrefixes: filterConfig.ServerReplacementPrefixes,
+			if watch {
+				if _, err = writeAppConn([]byte(lineStr + "\n")); err != nil {
+					errChan <- err
+				}
+			} else {
+				serverFilterConfig := FilterConfig{
+					Allowed:             filterConfig.ServerAllowed,
+					AllowedPrefixes:     filterConfig.ServerAllowedPrefixes,
+					Replacements:        filterConfig.ServerReplacements,
+					ReplacementPrefixes: filterConfig.ServerReplacementPrefixes,
+				}
+				filterCommand(lineStr, "250 OK", writeAppConn, errChan, &serverFilterConfig)
 			}
-			filterCommand(lineStr, "250 OK", writeAppConn, errChan, &serverFilterConfig)
 		}
 	}()
 
@@ -371,22 +377,24 @@ func filterConnection(appConn net.Conn, filteredControlAddr *net.UnixAddr, filte
 			lineStr := strings.TrimSpace(string(line))
 			log.Printf("A->T: [%s]\n", lineStr)
 
-			clientFilterConfig := FilterConfig{
-				Allowed:             filterConfig.ClientAllowed,
-				AllowedPrefixes:     filterConfig.ClientAllowedPrefixes,
-				Replacements:        filterConfig.ClientReplacements,
-				ReplacementPrefixes: filterConfig.ClientReplacementPrefixes,
-			}
-
 			writeToTor := func(line []byte) (int, error) {
-				var err error
-				n := 0
-				if n, err = torConn.Write([]byte(line)); err != nil { // XXX need \n ?
-					errChan <- err
-				}
+				n, err := torConn.Write([]byte(line))
 				return n, err
 			}
-			filterCommand(lineStr, "", writeToTor, errChan, &clientFilterConfig)
+			if watch {
+				_, err = writeToTor([]byte(lineStr + "\n"))
+				if err != nil {
+					errChan <- err
+				}
+			} else {
+				clientFilterConfig := FilterConfig{
+					Allowed:             filterConfig.ClientAllowed,
+					AllowedPrefixes:     filterConfig.ClientAllowedPrefixes,
+					Replacements:        filterConfig.ClientReplacements,
+					ReplacementPrefixes: filterConfig.ClientReplacementPrefixes,
+				}
+				filterCommand(lineStr, "", writeToTor, errChan, &clientFilterConfig)
+			}
 		}
 	}()
 
@@ -500,15 +508,18 @@ func main() {
 			continue
 		}
 
-		//log.Printf("proc info: uid %d pid %d execPath %s CmdLine %s\n", procInfo.Uid, procInfo.Pid, procInfo.ExePath, procInfo.CmdLine)
 		if filter := getFilterForPathAndUID(procInfo.ExePath, procInfo.Uid); filter != nil {
-			go filterConnection(conn, filteredControlAddr, filter)
+			go filterConnection(conn, filteredControlAddr, filter, false)
 		} else if filter := getFilterForPath(procInfo.ExePath); filter != nil {
-			go filterConnection(conn, filteredControlAddr, filter)
+			go filterConnection(conn, filteredControlAddr, filter, false)
 		} else {
 			log.Printf("No filters found for: %s (%d)\n", procInfo.ExePath, procInfo.Uid)
-			// Deny command...
-			conn.Close()
+			if watchMode {
+				go filterConnection(conn, filteredControlAddr, nil, true)
+			} else {
+				// Deny command...
+				conn.Close()
+			}
 		}
 	}
 }
