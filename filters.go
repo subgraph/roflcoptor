@@ -161,3 +161,43 @@ func isPrefixAllowed(cmd string, allowed []string) bool {
 	log.Print("false")
 	return false
 }
+
+func filterCommand(cmd, failureCmd string, writeFunc func([]byte) (int, error), errChan chan error, filterConfig *FilterConfig) {
+	var err error
+	replacement, ok := hasReplacementPrefix(cmd, filterConfig.ReplacementPrefixes)
+	if ok {
+		log.Printf("replacing %s with %s", cmd, replacement)
+		if _, err = writeFunc([]byte(replacement + "\n")); err != nil {
+			errChan <- err
+		}
+		return
+	}
+	replacement, ok = hasReplacementCommand(cmd, filterConfig.Replacements)
+	if ok {
+		log.Printf("replacing %s with %s", cmd, replacement)
+		if _, err = writeFunc([]byte(replacement + "\n")); err != nil {
+			errChan <- err
+		}
+		return
+	}
+	if isPrefixAllowed(cmd, filterConfig.AllowedPrefixes) {
+		log.Printf("%s has an allowed prefix", cmd)
+		if _, err = writeFunc([]byte(cmd + "\n")); err != nil {
+			errChan <- err
+		}
+		return
+	}
+	if isCommandAllowed(cmd, filterConfig.Allowed) {
+		log.Printf("%s is allowed", cmd)
+		if _, err = writeFunc([]byte(cmd + "\n")); err != nil {
+			errChan <- err
+		}
+		return
+	}
+	log.Printf("denied %s", cmd)
+	if failureCmd != "" {
+		if _, err = writeFunc([]byte(failureCmd + "\n")); err != nil {
+			errChan <- err
+		}
+	}
+}
