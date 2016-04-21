@@ -1,5 +1,5 @@
 {
-    "LogFile" : "roflcoptor.log",
+    "LogFile" : "-",
     "FiltersPath" : "./filters",
     "ListenTCPPort" : "8851",
     "ListenIP" : "127.0.0.1",
