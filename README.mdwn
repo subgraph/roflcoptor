@@ -2,6 +2,21 @@
 
 ROFLCopTor aims to be an exhaustive Tor control port filter daemon written in golang.
 
+# Introduction
+
+The Tor control port exposes powerful functionality, much more authority than most
+applications need when they talk to the Tor control port. In accordance with the
+principal of least authority each software module would ideally have authority
+over only the resources needed to perform it's tasks. Here in the context of ROFLCopTor,
+we seek to illiminate excess authority from applications which utilize the Tor control port,
+therefore they will not be in the debian-tor group or otherwise have access to the tor
+control port UNIX domain socket or TCP listener. The only available access to the tor control
+port being via ROFLCoptor which exposes a TCP listener and or a UNIX domain socket. Applications
+can be allowed to authenticate with ROFLCoptor but this isn't necessary because the filtration
+policy is applied based on the client application's exec path which is discovered by matching
+the socket inode via the Linux proc filesystem.
+
+
 # Acknowledgements
 
-ROFLCopTor is derived from @Yawning's [or-ctl-filter](https://github.com/Yawning/or-ctl-filter) and @david415's [or-ctl-sieve](https://github.com/david415/or-ctl-sieve).
+ROFLCopTor is derived from @Yawning's [or-ctl-filter](https://github.com/Yawning/or-ctl-filter) and @david415's [or-ctl-sieve](https://github.com/david415/or-ctl-sieve) which was derived from collaboration with Leif Ryge in making this proof of concept filter [twistedcat-armfilter-hax](https://github.com/david415/twistedcat/tree/armfilter-hax).
