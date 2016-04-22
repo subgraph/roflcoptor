@@ -239,8 +239,6 @@ func (s *ProxySession) initTorControl() error {
 
 func (s *ProxySession) sessionWorker() {
 	defer s.appConn.Close()
-
-	var policy *ServerClientFilterConfig
 	var err error
 
 	clientAddr := s.appConn.RemoteAddr()
@@ -253,10 +251,12 @@ func (s *ProxySession) sessionWorker() {
 			return
 		}
 	} else {
+		log.Printf("applying policy %v\n", s.policy)
 		procInfo := s.getProcInfo()
 		if procInfo == nil {
 			panic("proc query fail")
 		}
+		log.Printf("exec path %s\n", procInfo.ExePath)
 		if procInfo.ExePath != "/usr/sbin/oz-daemon" {
 			// denied!
 			log.Printf("ALERT/tor: pre auth socket was connected to by a app other than the oz-daemon")
@@ -265,21 +265,21 @@ func (s *ProxySession) sessionWorker() {
 	}
 
 	if s.policy == nil {
-		s.clientFilterPolicy = nil
-		s.serverFilterPolicy = nil
-	} else {
-		s.clientFilterPolicy = &FilterConfig{
-			Allowed:             policy.ClientAllowed,
-			AllowedPrefixes:     policy.ClientAllowedPrefixes,
-			Replacements:        policy.ClientReplacements,
-			ReplacementPrefixes: policy.ClientReplacementPrefixes,
-		}
-		s.serverFilterPolicy = &FilterConfig{
-			Allowed:             policy.ServerAllowed,
-			AllowedPrefixes:     policy.ServerAllowedPrefixes,
-			Replacements:        policy.ServerReplacements,
-			ReplacementPrefixes: policy.ServerReplacementPrefixes,
-		}
+		log.Print("failed to find a policy, connection proxy refusing")
+		return
+	}
+
+	s.clientFilterPolicy = &FilterConfig{
+		Allowed:             s.policy.ClientAllowed,
+		AllowedPrefixes:     s.policy.ClientAllowedPrefixes,
+		Replacements:        s.policy.ClientReplacements,
+		ReplacementPrefixes: s.policy.ClientReplacementPrefixes,
+	}
+	s.serverFilterPolicy = &FilterConfig{
+		Allowed:             s.policy.ServerAllowed,
+		AllowedPrefixes:     s.policy.ServerAllowedPrefixes,
+		Replacements:        s.policy.ServerReplacements,
+		ReplacementPrefixes: s.policy.ServerReplacementPrefixes,
 	}
 
 	// Authenticate with the real control port
