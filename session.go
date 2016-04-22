@@ -253,10 +253,6 @@ func (s *ProxySession) sessionWorker() {
 			log.Printf("proc info query failure; connection from %s aborted: %s\n", clientAddr, err)
 			return
 		}
-		if s.policy == nil {
-			log.Print("failed to find a policy, connection proxy refusing")
-			return
-		}
 	} else {
 		log.Printf("Applying existing policy %v\n", s.policy)
 		procInfo := s.getProcInfo()
@@ -270,18 +266,19 @@ func (s *ProxySession) sessionWorker() {
 			return
 		}
 	}
-
-	s.clientFilterPolicy = &FilterConfig{
-		Allowed:             s.policy.ClientAllowed,
-		AllowedPrefixes:     s.policy.ClientAllowedPrefixes,
-		Replacements:        s.policy.ClientReplacements,
-		ReplacementPrefixes: s.policy.ClientReplacementPrefixes,
-	}
-	s.serverFilterPolicy = &FilterConfig{
-		Allowed:             s.policy.ServerAllowed,
-		AllowedPrefixes:     s.policy.ServerAllowedPrefixes,
-		Replacements:        s.policy.ServerReplacements,
-		ReplacementPrefixes: s.policy.ServerReplacementPrefixes,
+	if s.policy != nil {
+		s.clientFilterPolicy = &FilterConfig{
+			Allowed:             s.policy.ClientAllowed,
+			AllowedPrefixes:     s.policy.ClientAllowedPrefixes,
+			Replacements:        s.policy.ClientReplacements,
+			ReplacementPrefixes: s.policy.ClientReplacementPrefixes,
+		}
+		s.serverFilterPolicy = &FilterConfig{
+			Allowed:             s.policy.ServerAllowed,
+			AllowedPrefixes:     s.policy.ServerAllowedPrefixes,
+			Replacements:        s.policy.ServerReplacements,
+			ReplacementPrefixes: s.policy.ServerReplacementPrefixes,
+		}
 	}
 
 	// Authenticate with the real control port
