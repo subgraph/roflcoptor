@@ -67,7 +67,7 @@ func (p *ProxyListener) AuthListener(listener net.Listener, policy *ServerClient
 		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(), conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
 
 		// Create the appropriate session instance.
-		s := NewAuthProxySession(conn, policy, p.watch)
+		s := NewAuthProxySession(conn, p.cfg, policy, p.watch)
 		go s.sessionWorker()
 	}
 }
@@ -147,8 +147,9 @@ type ProxySession struct {
 
 // NewAuthProxySession creates an instance of ProxySession that is prepared with a previously
 // authenticated policy.
-func NewAuthProxySession(conn net.Conn, policy *ServerClientFilterConfig, watch bool) *ProxySession {
+func NewAuthProxySession(conn net.Conn, cfg *RoflcoptorConfig, policy *ServerClientFilterConfig, watch bool) *ProxySession {
 	s := ProxySession{
+		cfg:           cfg,
 		policy:        policy,
 		watch:         watch,
 		appConn:       conn,
