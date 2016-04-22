@@ -39,10 +39,12 @@ func NewProxyListener(cfg *RoflcoptorConfig, wg *sync.WaitGroup, watch bool) (*P
 // InitAuthenticatedListeners runs each auth listener
 // in it's own goroutine.
 func (p *ProxyListener) InitAuthenticatedListeners() {
+	fmt.Println("InitAuthenticatedListeners begin")
 	listenerPolicyMap := getAuthenticatedPolicyListeners()
 	for listener, policy := range listenerPolicyMap {
 		go p.AuthListener(listener, policy)
 	}
+	fmt.Println("InitAuthenticatedListeners end")
 }
 
 // AuthListener implements a connection accept loop
@@ -54,13 +56,16 @@ func (p *ProxyListener) AuthListener(listener net.Listener, policy *ServerClient
 	defer p.wg.Done()
 
 	for {
-		conn, err := p.tcpListener.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
 			if e, ok := err.(net.Error); ok && !e.Temporary() {
 				log.Printf("ERR/tor: Failed to Accept(): %v", err)
+				fmt.Printf("ERR/tor: Failed to Accept(): %v", err)
 			}
 		}
 
+		log.Printf("connection received %s:%s -> %s:%s\n", conn.LocalAddr().Network(), conn.LocalAddr().String(), conn.RemoteAddr().Network(), conn.RemoteAddr().String())
+		log.Printf("policy %v\n", policy)
 		// Create the appropriate session instance.
 		s := NewAuthProxySession(conn, policy, p.watch)
 		go s.sessionWorker()
@@ -170,13 +175,15 @@ func (s *ProxySession) getProcInfo() *procsnitch.Info {
 	if s.appConn.LocalAddr().Network() == "tcp" {
 		fields := strings.Split(s.appConn.RemoteAddr().String(), ":")
 		dstPortStr := fields[1]
-		dstIP := net.ParseIP(s.cfg.ListenIP)
+
+		fields = strings.Split(s.appConn.LocalAddr().String(), ":")
+		dstIP := net.ParseIP(fields[0])
 		if dstIP == nil {
 			s.appConn.Close()
-			panic(fmt.Sprintf("impossible error: net.ParseIP fail for: %s\n", s.cfg.ListenIP))
+			panic(fmt.Sprintf("impossible error: net.ParseIP fail for: %s\n", fields[1]))
 		}
 		srcP, _ := strconv.ParseUint(dstPortStr, 10, 16)
-		dstP, _ := strconv.ParseUint(s.cfg.ListenTCPPort, 10, 16)
+		dstP, _ := strconv.ParseUint(fields[1], 10, 16)
 		procInfo = procsnitch.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
 	} else if s.appConn.LocalAddr().Network() == "unix" {
 		// XXX todo implement unix domain socket match
@@ -247,6 +254,9 @@ func (s *ProxySession) sessionWorker() {
 		}
 	} else {
 		procInfo := s.getProcInfo()
+		if procInfo == nil {
+			panic("proc query fail")
+		}
 		if procInfo.ExePath != "/usr/sbin/oz-daemon" {
 			// denied!
 			log.Printf("ALERT/tor: pre auth socket was connected to by a app other than the oz-daemon")

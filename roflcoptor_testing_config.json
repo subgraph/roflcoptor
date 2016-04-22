@@ -1,7 +1,7 @@
 {
     "LogFile" : "-",
     "FiltersPath" : "./filters",
-    "ListenTCPPort" : "8851",
+    "ListenTCPPort" : "9051",
     "ListenIP" : "127.0.0.1",
     "TorControlSocketPath" : "/var/run/tor/control"
 }
