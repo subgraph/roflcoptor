@@ -1,0 +1,14 @@
+features.panels.show.log false
+features.panels.show.connection false
+features.panels.show.config false
+features.panels.show.torrc false
+features.panels.show.interpretor false
+queries.useProc false
+features.torrc.validate false
+features.showFdUsage false
+features.connection.showIps false
+features.connection.showColumn.fingerprint false
+features.connection.showColumn.nickname false
+features.connection.showColumn.destination false
+features.connection.showColumn.expandedIp false
+
