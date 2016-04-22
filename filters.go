@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path"
 	"regexp"
@@ -15,8 +16,11 @@ var commentRegexp = regexp.MustCompile("^[ \t]*#")
 
 // ServerClientFilterConfig defines an application filter policy
 type ServerClientFilterConfig struct {
-	ExecPath                  string            `json:"exec-path"`
-	UserID                    int               `json:"user-id",omitempty`
+	AuthNetAddr string `json:"AuthNetAddr"`
+	AuthAddr    string `json:"AuthAddr"`
+	ExecPath    string `json:"exec-path"`
+	UserID      int    `json:"user-id",omitempty`
+
 	ClientAllowed             []string          `json:"client-allowed"`
 	ClientAllowedPrefixes     []string          `json:"client-allowed-prefixes"`
 	ClientReplacements        map[string]string `json:"client-replacements"`
@@ -94,6 +98,20 @@ func loadFilterFile(fpath string) (*ServerClientFilterConfig, error) {
 		return nil, nil
 	}
 	return f, nil
+}
+
+func getAuthenticatedPolicyListeners() map[net.Listener]*ServerClientFilterConfig {
+	listenerMap := make(map[net.Listener]*ServerClientFilterConfig)
+	for _, filter := range loadedFilters {
+		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
+			listener, err := net.Listen(filter.AuthNetAddr, filter.AuthAddr)
+			if err != nil {
+				panic(err)
+			}
+			listenerMap[listener] = filter
+		}
+	}
+	return listenerMap
 }
 
 func getFilterForPath(path string) *ServerClientFilterConfig {

@@ -36,16 +36,61 @@ func NewProxyListener(cfg *RoflcoptorConfig, wg *sync.WaitGroup, watch bool) (*P
 	return &p, nil
 }
 
-// InitAllListeners initialize all tor control port proxy listeners
-func (p *ProxyListener) InitAllListeners() {
-	// XXX TODO add UNIX domain socket listener
+// InitAuthenticatedListeners runs each auth listener
+// in it's own goroutine.
+func (p *ProxyListener) InitAuthenticatedListeners() {
+	listenerPolicyMap := getAuthenticatedPolicyListeners()
+	for listener, policy := range listenerPolicyMap {
+		go p.AuthListener(listener, policy)
+	}
+}
+
+// AuthListener implements a connection accept loop
+// where we dispatch a new session worker for each connection
+// with a previously authenticated policy
+func (p *ProxyListener) AuthListener(listener net.Listener, policy *ServerClientFilterConfig) {
 	p.wg.Add(1)
+	defer listener.Close()
+	defer p.wg.Done()
+
+	for {
+		conn, err := p.tcpListener.Accept()
+		if err != nil {
+			if e, ok := err.(net.Error); ok && !e.Temporary() {
+				log.Printf("ERR/tor: Failed to Accept(): %v", err)
+			}
+		}
+
+		// Create the appropriate session instance.
+		s := NewAuthProxySession(conn, policy, p.watch)
+		go s.sessionWorker()
+	}
+}
+
+// InitAllListeners initialize all tor control port proxy listeners.
+// There are currently two types of listeners with two types of authentication:
+//
+// - Applications which are not in the Oz jail will have their kernel enforced unique
+// exec path which we use to determine which filter policy to apply.
+//
+// - "previously authenticated" listeners designate the policy based on the
+// client's ability to connect, therefore access to this listener must be restricted
+// by other means. All applications running from an Oz shell will appear to have
+// the same exec path of "/usr/sbin/oz-daemon"
+func (p *ProxyListener) InitAllListeners() {
+
+	// Previously authenticated listeners can be any network type
+	// including UNIX domain sockets.
+	p.InitAuthenticatedListeners()
+
+	// XXX TODO add UNIX domain socket listener
 	p.FilterTCPAcceptLoop()
 }
 
 // FilterTCPAcceptLoop and listens and accepts new
 // connections and passes them into our filter proxy pipeline
 func (p *ProxyListener) FilterTCPAcceptLoop() {
+	p.wg.Add(1)
 	defer p.wg.Done()
 
 	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", p.cfg.ListenIP, p.cfg.ListenTCPPort))
@@ -76,6 +121,7 @@ func (p *ProxyListener) FilterTCPAcceptLoop() {
 
 // ProxySession is used to manage is single Tor Control port filter proxy session
 type ProxySession struct {
+	policy             *ServerClientFilterConfig
 	cfg                *RoflcoptorConfig
 	clientFilterPolicy *FilterConfig
 	serverFilterPolicy *FilterConfig
@@ -92,6 +138,19 @@ type ProxySession struct {
 	sync.WaitGroup
 }
 
+// NewAuthProxySession creates an instance of ProxySession that is prepared with a previously
+// authenticated policy.
+func NewAuthProxySession(conn net.Conn, policy *ServerClientFilterConfig, watch bool) *ProxySession {
+	s := &ProxySession{
+		policy:        policy,
+		watch:         watch,
+		appConn:       conn,
+		appConnReader: bufio.NewReader(conn),
+		errChan:       make(chan error, 2),
+	}
+	return s
+}
+
 // NewProxySession creates a ProxySession given a client's connection
 // to our proxy listener and a watch bool.
 func NewProxySession(cfg *RoflcoptorConfig, conn net.Conn, watch bool) *ProxySession {
@@ -105,28 +164,37 @@ func NewProxySession(cfg *RoflcoptorConfig, conn net.Conn, watch bool) *ProxySes
 	return s
 }
 
+func (s *ProxySession) getProcInfo() *procsnitch.Info {
+	var procInfo *procsnitch.Info
+	// XXX fix me for tcp4 and tcp6?
+	if s.appConn.LocalAddr().Network() == "tcp" {
+		fields := strings.Split(s.appConn.RemoteAddr().String(), ":")
+		dstPortStr := fields[1]
+		dstIP := net.ParseIP(s.cfg.ListenIP)
+		if dstIP == nil {
+			s.appConn.Close()
+			panic(fmt.Sprintf("impossible error: net.ParseIP fail for: %s\n", s.cfg.ListenIP))
+		}
+		srcP, _ := strconv.ParseUint(dstPortStr, 10, 16)
+		dstP, _ := strconv.ParseUint(s.cfg.ListenTCPPort, 10, 16)
+		procInfo = procsnitch.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
+	} else if s.appConn.LocalAddr().Network() == "unix" {
+		// XXX todo implement unix domain socket match
+		panic("unix domain socket proc info matching not yet implemented")
+	}
+	return procInfo
+}
+
 // getFilterPolicy returns a *ServerClientFilterConfig
 // (session policy) if one can be found, otherwise nil is returned.
 // Note that the connection is closed upon fatal error,
 // when we fail to lookup the proc info, we return nil and an error.
 func (s *ProxySession) getFilterPolicy() (*ServerClientFilterConfig, error) {
-
-	fields := strings.Split(s.appConn.RemoteAddr().String(), ":")
-	dstPortStr := fields[1]
-	dstIP := net.ParseIP(s.cfg.ListenIP)
-
-	if dstIP == nil {
-		s.appConn.Close()
-		return nil, fmt.Errorf("net.ParseIP fail for: %s\n", s.cfg.ListenIP)
-	}
-
-	srcP, _ := strconv.ParseUint(dstPortStr, 10, 16)
-	dstP, _ := strconv.ParseUint(s.cfg.ListenTCPPort, 10, 16)
-	procInfo := procsnitch.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
+	procInfo := s.getProcInfo()
 	log.Printf("proc exec path: %s\n", procInfo.ExePath)
 	if procInfo == nil {
 		s.appConn.Close()
-		return nil, fmt.Errorf("Could not find process information for: %d %s %d\n", srcP, dstIP, dstP)
+		return nil, fmt.Errorf("Could not find process information for connection %s:%s", s.appConn.LocalAddr().Network(), s.appConn.LocalAddr().String())
 	}
 
 	filter := getFilterForPathAndUID(procInfo.ExePath, procInfo.UID)
@@ -171,12 +239,22 @@ func (s *ProxySession) sessionWorker() {
 	clientAddr := s.appConn.RemoteAddr()
 	log.Printf("INFO/tor: New ctrl connection from: %s", clientAddr)
 
-	policy, err = s.getFilterPolicy()
-	if err != nil {
-		log.Printf("proc info query failure; connection from %s aborted: %s\n", clientAddr, err)
-		return
+	if s.policy == nil {
+		s.policy, err = s.getFilterPolicy()
+		if err != nil {
+			log.Printf("proc info query failure; connection from %s aborted: %s\n", clientAddr, err)
+			return
+		}
+	} else {
+		procInfo := s.getProcInfo()
+		if procInfo.ExePath != "/usr/sbin/oz-daemon" {
+			// denied!
+			log.Printf("ALERT/tor: pre auth socket was connected to by a app other than the oz-daemon")
+			return
+		}
 	}
-	if policy == nil {
+
+	if s.policy == nil {
 		s.clientFilterPolicy = nil
 		s.serverFilterPolicy = nil
 	} else {
@@ -196,8 +274,6 @@ func (s *ProxySession) sessionWorker() {
 
 	// Authenticate with the real control port
 	err = s.initTorControl()
-	defer s.torConn.Close()
-
 	if err != nil {
 		log.Printf("RoflcopTor: Failed to authenticate with the tor control port: %s\n", err)
 		return
