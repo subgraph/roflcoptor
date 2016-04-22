@@ -42,6 +42,7 @@ func (p *ProxyListener) InitAuthenticatedListeners() {
 	fmt.Println("InitAuthenticatedListeners begin")
 	listenerPolicyMap := getAuthenticatedPolicyListeners()
 	for listener, policy := range listenerPolicyMap {
+		log.Printf("listener %v policy %v", listener, policy)
 		go p.AuthListener(listener, policy)
 	}
 	fmt.Println("InitAuthenticatedListeners end")
@@ -60,12 +61,11 @@ func (p *ProxyListener) AuthListener(listener net.Listener, policy *ServerClient
 		if err != nil {
 			if e, ok := err.(net.Error); ok && !e.Temporary() {
 				log.Printf("ERR/tor: Failed to Accept(): %v", err)
-				fmt.Printf("ERR/tor: Failed to Accept(): %v", err)
 			}
 		}
 
-		log.Printf("connection received %s:%s -> %s:%s\n", conn.LocalAddr().Network(), conn.LocalAddr().String(), conn.RemoteAddr().Network(), conn.RemoteAddr().String())
-		log.Printf("policy %v\n", policy)
+		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(), conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
+
 		// Create the appropriate session instance.
 		s := NewAuthProxySession(conn, policy, p.watch)
 		go s.sessionWorker()
@@ -118,6 +118,8 @@ func (p *ProxyListener) FilterTCPAcceptLoop() {
 			}
 		}
 
+		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(), conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
+
 		// Create the appropriate session instance.
 		s := NewProxySession(p.cfg, conn, p.watch)
 		go s.sessionWorker()
@@ -146,14 +148,14 @@ type ProxySession struct {
 // NewAuthProxySession creates an instance of ProxySession that is prepared with a previously
 // authenticated policy.
 func NewAuthProxySession(conn net.Conn, policy *ServerClientFilterConfig, watch bool) *ProxySession {
-	s := &ProxySession{
+	s := ProxySession{
 		policy:        policy,
 		watch:         watch,
 		appConn:       conn,
 		appConnReader: bufio.NewReader(conn),
 		errChan:       make(chan error, 2),
 	}
-	return s
+	return &s
 }
 
 // NewProxySession creates a ProxySession given a client's connection
@@ -245,13 +247,18 @@ func (s *ProxySession) sessionWorker() {
 	log.Printf("INFO/tor: New ctrl connection from: %s", clientAddr)
 
 	if s.policy == nil {
+		log.Print("No existing policy found.")
 		s.policy, err = s.getFilterPolicy()
 		if err != nil {
 			log.Printf("proc info query failure; connection from %s aborted: %s\n", clientAddr, err)
 			return
 		}
+		if s.policy == nil {
+			log.Print("failed to find a policy, connection proxy refusing")
+			return
+		}
 	} else {
-		log.Printf("applying policy %v\n", s.policy)
+		log.Printf("Applying existing policy %v\n", s.policy)
 		procInfo := s.getProcInfo()
 		if procInfo == nil {
 			panic("proc query fail")
@@ -262,11 +269,6 @@ func (s *ProxySession) sessionWorker() {
 			log.Printf("ALERT/tor: pre auth socket was connected to by a app other than the oz-daemon")
 			return
 		}
-	}
-
-	if s.policy == nil {
-		log.Print("failed to find a policy, connection proxy refusing")
-		return
 	}
 
 	s.clientFilterPolicy = &FilterConfig{
