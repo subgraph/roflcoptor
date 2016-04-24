@@ -241,7 +241,7 @@ func (s *ProxySession) proxyFilterTorToApp() {
 		lineStr := strings.TrimSpace(string(line))
 		log.Printf("A<-T: [%s]\n", lineStr)
 		if s.watch {
-			if _, err = writeAppConn([]byte(lineStr + "\n")); err != nil {
+			if _, err = writeAppConn([]byte(lineStr + "\r\n")); err != nil {
 				s.errChan <- err
 				break
 			}
@@ -269,7 +269,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 		log.Printf("A->T: [%s]\n", lineStr)
 
 		if s.watch {
-			_, err = writeToTor([]byte(lineStr + "\n"))
+			_, err = writeToTor([]byte(lineStr + "\r\n"))
 			if err != nil {
 				s.errChan <- err
 			}
