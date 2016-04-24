@@ -1,0 +1,13 @@
+{
+    "exec-path": "/usr/local/bin/ricochet",
+    "client-allowed" : ["PROTOCOLINFO", "AUTHENTICATE",
+                        "GETCONF DisableNetwork",
+                        "SETEVENTS STATUS_CLIENT",
+                        "GETINFO status/circuit-established status/bootstrap-phase net/listeners/socks"],
+    "client-allowed-prefixes" : ["ADD_ONION", "DEL_ONION"],
+    "client-replacements" : {},
+    "client-replacement-prefixes" : {},
+    "server-allowed" : ["250-PROTOCOLINFO 1", "250 OK"],
+    "server-allowed-prefixes" : ["250-ServiceID="],
+    "server-replacement-prefixes" : {}
+}
