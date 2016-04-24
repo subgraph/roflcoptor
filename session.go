@@ -201,12 +201,10 @@ func (s *ProxySession) getProcInfo() *procsnitch.Info {
 // when we fail to lookup the proc info, we return nil and an error.
 func (s *ProxySession) getFilterPolicy() (*ServerClientFilterConfig, error) {
 	procInfo := s.getProcInfo()
-	log.Printf("proc exec path: %s\n", procInfo.ExePath)
 	if procInfo == nil {
 		s.appConn.Close()
 		return nil, fmt.Errorf("Could not find process information for connection %s:%s", s.appConn.LocalAddr().Network(), s.appConn.LocalAddr().String())
 	}
-
 	filter := getFilterForPathAndUID(procInfo.ExePath, procInfo.UID)
 	if filter == nil {
 		filter = getFilterForPath(procInfo.ExePath)
