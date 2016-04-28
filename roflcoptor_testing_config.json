@@ -1,7 +1,7 @@
 {
     "LogFile" : "-",
     "FiltersPath" : "./filters",
-    "ListenTCPPort" : "9051",
-    "ListenIP" : "127.0.0.1",
+    "ListenNet" : "unix",
+    "ListenAddress" : "roflcoptor_socket",
     "TorControlSocketPath" : "/var/run/tor/control"
 }
