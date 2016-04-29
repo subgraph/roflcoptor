@@ -243,14 +243,12 @@ func (s *ProxySession) sessionWorker() {
 	log.Printf("INFO/tor: New ctrl connection from: %s", clientAddr)
 
 	if s.policy == nil {
-		log.Print("No existing policy found.")
 		s.policy, err = s.getFilterPolicy()
-		if err != nil {
-			log.Printf("proc info query failure; connection from %s aborted: %s\n", clientAddr, err)
+		if err != nil || s.policy == nil {
+			log.Printf("proc info query failure: %s", err)
 			return
 		}
 	} else {
-		log.Printf("Applying existing policy %v\n", s.policy)
 		procInfo := s.getProcInfo()
 		if procInfo == nil {
 			panic("proc query fail")
