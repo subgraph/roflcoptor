@@ -13,6 +13,17 @@ import (
 	"github.com/yawning/bulb"
 )
 
+type ProcInfo interface {
+	LookupTCPSocketProcess(srcPort uint16, dstAddr net.IP, dstPort uint16) *procsnitch.Info
+}
+
+type RealProcInfo struct {
+}
+
+func (r RealProcInfo) LookupTCPSocketProcess(srcPort uint16, dstAddr net.IP, dstPort uint16) *procsnitch.Info {
+	return procsnitch.LookupTCPSocketProcess(srcPort, dstAddr, dstPort)
+}
+
 // ProxyListener is used to listen for
 // Tor Control port connections and
 // dispatches them to worker sessions
@@ -23,15 +34,17 @@ type ProxyListener struct {
 	wg          *sync.WaitGroup
 	tcpListener *net.TCPListener
 	errChan     chan error
+	procInfo    ProcInfo
 }
 
 // NewProxyListener creates a new ProxyListener given
 // a configuration structure.
 func NewProxyListener(cfg *RoflcoptorConfig, wg *sync.WaitGroup, watch bool) (*ProxyListener, error) {
 	p := ProxyListener{
-		cfg:   cfg,
-		wg:    wg,
-		watch: watch,
+		cfg:      cfg,
+		wg:       wg,
+		watch:    watch,
+		procInfo: RealProcInfo{},
 	}
 	return &p, nil
 }
@@ -64,7 +77,7 @@ func (p *ProxyListener) AuthListener(listener net.Listener, policy *ServerClient
 		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(), conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
 
 		// Create the appropriate session instance.
-		s := NewAuthProxySession(conn, p.cfg, policy, p.watch)
+		s := NewAuthProxySession(conn, p.cfg, policy, p.watch, p.procInfo)
 		go s.sessionWorker()
 	}
 }
@@ -118,7 +131,7 @@ func (p *ProxyListener) FilterTCPAcceptLoop() {
 		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(), conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
 
 		// Create the appropriate session instance.
-		s := NewProxySession(p.cfg, conn, p.watch)
+		s := NewProxySession(p.cfg, conn, p.watch, p.procInfo)
 		go s.sessionWorker()
 	}
 }
@@ -137,6 +150,8 @@ type ProxySession struct {
 	torConn   *bulb.Conn
 	protoInfo *bulb.ProtocolInfo
 
+	procInfo ProcInfo
+
 	watch   bool
 	errChan chan error
 	sync.WaitGroup
@@ -144,7 +159,7 @@ type ProxySession struct {
 
 // NewAuthProxySession creates an instance of ProxySession that is prepared with a previously
 // authenticated policy.
-func NewAuthProxySession(conn net.Conn, cfg *RoflcoptorConfig, policy *ServerClientFilterConfig, watch bool) *ProxySession {
+func NewAuthProxySession(conn net.Conn, cfg *RoflcoptorConfig, policy *ServerClientFilterConfig, watch bool, procInfo ProcInfo) *ProxySession {
 	s := ProxySession{
 		cfg:           cfg,
 		policy:        policy,
@@ -158,13 +173,14 @@ func NewAuthProxySession(conn net.Conn, cfg *RoflcoptorConfig, policy *ServerCli
 
 // NewProxySession creates a ProxySession given a client's connection
 // to our proxy listener and a watch bool.
-func NewProxySession(cfg *RoflcoptorConfig, conn net.Conn, watch bool) *ProxySession {
+func NewProxySession(cfg *RoflcoptorConfig, conn net.Conn, watch bool, procInfo ProcInfo) *ProxySession {
 	s := &ProxySession{
 		cfg:           cfg,
 		watch:         watch,
 		appConn:       conn,
 		appConnReader: bufio.NewReader(conn),
 		errChan:       make(chan error, 2),
+		procInfo:      procInfo,
 	}
 	return s
 }
@@ -184,7 +200,7 @@ func (s *ProxySession) getProcInfo() *procsnitch.Info {
 		}
 		srcP, _ := strconv.ParseUint(dstPortStr, 10, 16)
 		dstP, _ := strconv.ParseUint(fields[1], 10, 16)
-		procInfo = procsnitch.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
+		procInfo = s.procInfo.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
 	} else if s.appConn.LocalAddr().Network() == "unix" {
 		// XXX todo implement unix domain socket match
 		panic("unix domain socket proc info matching not yet implemented")

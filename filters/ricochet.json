@@ -8,6 +8,6 @@
     "client-replacements" : {},
     "client-replacement-prefixes" : {},
     "server-allowed" : ["250-PROTOCOLINFO 1", "250 OK"],
-    "server-allowed-prefixes" : ["250-ServiceID="],
+    "server-allowed-prefixes" : ["250-ServiceID=", "250-VERSION", "250-AUTH METHODS="],
     "server-replacement-prefixes" : {}
 }
