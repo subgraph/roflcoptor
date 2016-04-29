@@ -29,12 +29,12 @@ func (r RealProcInfo) LookupTCPSocketProcess(srcPort uint16, dstAddr net.IP, dst
 // dispatches them to worker sessions
 // to implement the filtering proxy pipeline.
 type ProxyListener struct {
-	cfg         *RoflcoptorConfig
-	watch       bool
-	wg          *sync.WaitGroup
-	tcpListener *net.TCPListener
-	errChan     chan error
-	procInfo    ProcInfo
+	cfg      *RoflcoptorConfig
+	watch    bool
+	wg       *sync.WaitGroup
+	listener net.Listener
+	errChan  chan error
+	procInfo ProcInfo
 }
 
 // NewProxyListener creates a new ProxyListener given
@@ -99,29 +99,26 @@ func (p *ProxyListener) InitAllListeners() {
 	p.InitAuthenticatedListeners()
 
 	// XXX TODO add UNIX domain socket listener
-	p.FilterTCPAcceptLoop()
+	p.FilterAcceptLoop()
 }
 
-// FilterTCPAcceptLoop and listens and accepts new
+// FilterAcceptLoop and listens and accepts new
 // connections and passes them into our filter proxy pipeline
-func (p *ProxyListener) FilterTCPAcceptLoop() {
+func (p *ProxyListener) FilterAcceptLoop() {
+	var err error
 	p.wg.Add(1)
 	defer p.wg.Done()
 
-	tcpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", p.cfg.ListenIP, p.cfg.ListenTCPPort))
-	if err != nil {
-		panic(fmt.Sprintf("Failed to resolve TCP configured filter port: %s\n", err))
-	}
-	p.tcpListener, err = net.ListenTCP("tcp", tcpAddr)
+	p.listener, err = net.Listen(p.cfg.ListenNet, p.cfg.ListenAddress)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to listen on the filter port: %s\n", err))
 	}
-	defer p.tcpListener.Close()
+	defer p.listener.Close()
 
 	// Listen for incoming connections, and dispatch workers.
 	// XXX TODO use a select statement to implement a stop/shutdown channel?
 	for {
-		conn, err := p.tcpListener.Accept()
+		conn, err := p.listener.Accept()
 		if err != nil {
 			if e, ok := err.(net.Error); ok && !e.Temporary() {
 				log.Printf("ERR/tor: Failed to Accept(): %v", err)

@@ -55,8 +55,8 @@ import (
 type RoflcoptorConfig struct {
 	LogFile              string
 	FiltersPath          string
-	ListenTCPPort        string
-	ListenIP             string
+	ListenNet            string
+	ListenAddress        string
 	TorControlSocketPath string
 }
 

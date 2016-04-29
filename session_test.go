@@ -84,8 +84,8 @@ func TestProxyListenerSession(t *testing.T) {
 	config := RoflcoptorConfig{
 		LogFile:              "-",
 		FiltersPath:          "./filters",
-		ListenTCPPort:        "4356",
-		ListenIP:             "127.0.0.1",
+		ListenNet:            "tcp",
+		ListenAddress:        "127.0.0.1:4356",
 		TorControlSocketPath: "tor_control",
 	}
 
@@ -107,7 +107,7 @@ func TestProxyListenerSession(t *testing.T) {
 
 	proxyListener.procInfo = MockProcInfo{}
 
-	go proxyListener.FilterTCPAcceptLoop()
+	go proxyListener.FilterAcceptLoop()
 
 	var torConn *bulb.Conn
 	torConn, err = bulb.Dial("tcp", "127.0.0.1:4356")
