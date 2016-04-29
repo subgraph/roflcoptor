@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path"
 	"regexp"
@@ -15,8 +16,11 @@ var commentRegexp = regexp.MustCompile("^[ \t]*#")
 
 // ServerClientFilterConfig defines an application filter policy
 type ServerClientFilterConfig struct {
-	ExecPath                  string            `json:"exec-path"`
-	UserID                    int               `json:"user-id",omitempty`
+	AuthNetAddr string `json:"AuthNetAddr"`
+	AuthAddr    string `json:"AuthAddr"`
+	ExecPath    string `json:"exec-path"`
+	UserID      int    `json:"user-id",omitempty`
+
 	ClientAllowed             []string          `json:"client-allowed"`
 	ClientAllowedPrefixes     []string          `json:"client-allowed-prefixes"`
 	ClientReplacements        map[string]string `json:"client-replacements"`
@@ -96,6 +100,20 @@ func loadFilterFile(fpath string) (*ServerClientFilterConfig, error) {
 	return f, nil
 }
 
+func getAuthenticatedPolicyListeners() map[net.Listener]*ServerClientFilterConfig {
+	listenerMap := make(map[net.Listener]*ServerClientFilterConfig)
+	for _, filter := range loadedFilters {
+		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
+			listener, err := net.Listen(filter.AuthNetAddr, filter.AuthAddr)
+			if err != nil {
+				panic(err)
+			}
+			listenerMap[listener] = filter
+		}
+	}
+	return listenerMap
+}
+
 func getFilterForPath(path string) *ServerClientFilterConfig {
 	for _, filter := range loadedFilters {
 		if filter.ExecPath == path && filter.UserID == -1 {
@@ -115,50 +133,37 @@ func getFilterForPathAndUID(path string, uid int) *ServerClientFilterConfig {
 }
 
 func hasReplacementCommand(cmd string, replacements map[string]string) (string, bool) {
-	log.Print("maybeReplaceCommand\n")
 	replacement, ok := replacements[cmd]
 	if ok {
-		log.Printf("%v true", replacement)
 		return replacement, true
 	}
-	log.Printf("%v false", replacement)
 	return cmd, false
 }
 
 func hasReplacementPrefix(cmd string, replacements map[string]string) (string, bool) {
-	log.Print("hasReplacementPrefix")
 	for prefix, replacement := range replacements {
-		log.Printf("does cmd %s contain prefix %s\n", cmd, prefix)
 		if strings.HasPrefix(cmd, prefix) {
-			log.Print("true")
 			return replacement, true
 		}
 	}
-	log.Print("false")
 	return cmd, false
 }
 
 func isCommandAllowed(cmd string, allowed []string) bool {
-	log.Print("isCommandAllowed")
 	for i := 0; i < len(allowed); i++ {
 		if cmd == allowed[i] {
-			log.Print("true")
 			return true
 		}
 	}
-	log.Print("false")
 	return false
 }
 
 func isPrefixAllowed(cmd string, allowed []string) bool {
-	log.Print("isPrefixAllowed")
 	for i := 0; i < len(allowed); i++ {
 		if strings.HasPrefix(cmd, allowed[i]) {
-			log.Print("true")
 			return true
 		}
 	}
-	log.Print("false")
 	return false
 }
 
