@@ -245,7 +245,7 @@ func (s *ProxySession) sessionWorker() {
 	if s.policy == nil {
 		log.Print("No existing policy found.")
 		s.policy, err = s.getFilterPolicy()
-		if err != nil {
+		if err != nil || s.policy == nil {
 			log.Printf("proc info query failure; connection from %s aborted: %s\n", clientAddr, err)
 			return
 		}
