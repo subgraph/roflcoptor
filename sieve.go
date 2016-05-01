@@ -37,6 +37,7 @@ func (p *SievePolicyJSONConfig) GetSieves() (*Sieve, *Sieve) {
 	return clientSieve, serverSieve
 }
 
+// Sieve represents unidirectional message filtration
 type Sieve struct {
 	Allowed             []string
 	AllowedPrefixes     []string
@@ -44,6 +45,7 @@ type Sieve struct {
 	ReplacementPrefixes map[string]string
 }
 
+// NewSieve creates a new Sieve
 func NewSieve(allowed, allowedPrefixes []string, replacements, replacementPrefixes map[string]string) *Sieve {
 	s := Sieve{
 		Allowed:             allowed,
@@ -179,19 +181,22 @@ func loadFilterFile(fpath string) (*SievePolicyJSONConfig, error) {
 	return f, nil
 }
 
+// ListenAddr represents a network endpoint
 type ListenAddr struct {
 	net     string
 	address string
 }
 
 func getListenerAddresses() []ListenAddr {
-	var addrList []ListenAddr = make([]ListenAddr, 0, 0)
+	addrList := []ListenAddr{}
 	for _, filter := range loadedFilters {
-		l := ListenAddr{
-			net:     filter.AuthNetAddr,
-			address: filter.AuthAddr,
+		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
+			l := ListenAddr{
+				net:     filter.AuthNetAddr,
+				address: filter.AuthAddr,
+			}
+			addrList = append(addrList, l)
 		}
-		addrList = append(addrList, l)
 	}
 	return addrList
 }
