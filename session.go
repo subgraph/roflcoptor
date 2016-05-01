@@ -39,14 +39,14 @@ type ProxyListener struct {
 
 // NewProxyListener creates a new ProxyListener given
 // a configuration structure.
-func NewProxyListener(cfg *RoflcoptorConfig, wg *sync.WaitGroup, watch bool) (*ProxyListener, error) {
+func NewProxyListener(cfg *RoflcoptorConfig, wg *sync.WaitGroup, watch bool) *ProxyListener {
 	p := ProxyListener{
 		cfg:      cfg,
 		wg:       wg,
 		watch:    watch,
 		procInfo: RealProcInfo{},
 	}
-	return &p, nil
+	return &p
 }
 
 // InitAuthenticatedListeners runs each auth listener
@@ -61,7 +61,7 @@ func (p *ProxyListener) InitAuthenticatedListeners() {
 // AuthListener implements a connection accept loop
 // where we dispatch a new session worker for each connection
 // with a previously authenticated policy
-func (p *ProxyListener) AuthListener(listener net.Listener, policy *ServerClientFilterConfig) {
+func (p *ProxyListener) AuthListener(listener net.Listener, policy *SievePolicyJSONConfig) {
 	p.wg.Add(1)
 	defer listener.Close()
 	defer p.wg.Done()
@@ -77,12 +77,12 @@ func (p *ProxyListener) AuthListener(listener net.Listener, policy *ServerClient
 		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(), conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
 
 		// Create the appropriate session instance.
-		s := NewAuthProxySession(conn, p.cfg, policy, p.watch, p.procInfo)
+		s := NewAuthProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.watch, p.procInfo, policy)
 		go s.sessionWorker()
 	}
 }
 
-// InitAllListeners initialize all tor control port proxy listeners.
+// StartListeners initialize all tor control port proxy listeners.
 // There are currently two types of listeners with two types of authentication:
 //
 // - Applications which are not in the Oz jail will have their kernel enforced unique
@@ -92,21 +92,19 @@ func (p *ProxyListener) AuthListener(listener net.Listener, policy *ServerClient
 // client's ability to connect, therefore access to this listener must be restricted
 // by other means. All applications running from an Oz shell will appear to have
 // the same exec path of "/usr/sbin/oz-daemon"
-func (p *ProxyListener) InitAllListeners() {
+func (p *ProxyListener) StartListeners() {
 
 	// Previously authenticated listeners can be any network type
 	// including UNIX domain sockets.
 	p.InitAuthenticatedListeners()
-
-	// XXX TODO add UNIX domain socket listener
-	p.FilterAcceptLoop()
+	p.wg.Add(1)
+	go p.FilterAcceptLoop()
 }
 
 // FilterAcceptLoop and listens and accepts new
 // connections and passes them into our filter proxy pipeline
 func (p *ProxyListener) FilterAcceptLoop() {
 	var err error
-	p.wg.Add(1)
 	defer p.wg.Done()
 
 	p.listener, err = net.Listen(p.cfg.ListenNet, p.cfg.ListenAddress)
@@ -128,24 +126,25 @@ func (p *ProxyListener) FilterAcceptLoop() {
 		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(), conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
 
 		// Create the appropriate session instance.
-		s := NewProxySession(p.cfg, conn, p.watch, p.procInfo)
+		s := NewProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.watch, p.procInfo)
 		go s.sessionWorker()
 	}
 }
 
 // ProxySession is used to manage is single Tor Control port filter proxy session
 type ProxySession struct {
-	policy             *ServerClientFilterConfig
-	cfg                *RoflcoptorConfig
-	clientFilterPolicy *FilterConfig
-	serverFilterPolicy *FilterConfig
+	policy      *SievePolicyJSONConfig
+	clientSieve *Sieve
+	serverSieve *Sieve
 
-	appConn          net.Conn
-	appConnReader    *bufio.Reader
-	appConnWriteLock sync.Mutex
+	torControlNet     string
+	torControlAddress string
 
 	torConn   *bulb.Conn
 	protoInfo *bulb.ProtocolInfo
+
+	appConn     net.Conn
+	appConnLock sync.Mutex
 
 	procInfo ProcInfo
 
@@ -156,28 +155,28 @@ type ProxySession struct {
 
 // NewAuthProxySession creates an instance of ProxySession that is prepared with a previously
 // authenticated policy.
-func NewAuthProxySession(conn net.Conn, cfg *RoflcoptorConfig, policy *ServerClientFilterConfig, watch bool, procInfo ProcInfo) *ProxySession {
+func NewAuthProxySession(conn net.Conn, torControlNet, torControlAddress string, watch bool, procInfo ProcInfo, policy *SievePolicyJSONConfig) *ProxySession {
 	s := ProxySession{
-		cfg:           cfg,
-		policy:        policy,
-		watch:         watch,
-		appConn:       conn,
-		appConnReader: bufio.NewReader(conn),
-		errChan:       make(chan error, 2),
+		torControlNet:     torControlNet,
+		torControlAddress: torControlAddress,
+		policy:            policy,
+		watch:             watch,
+		appConn:           conn,
+		errChan:           make(chan error, 2),
 	}
 	return &s
 }
 
 // NewProxySession creates a ProxySession given a client's connection
 // to our proxy listener and a watch bool.
-func NewProxySession(cfg *RoflcoptorConfig, conn net.Conn, watch bool, procInfo ProcInfo) *ProxySession {
+func NewProxySession(conn net.Conn, torControlNet, torControlAddress string, watch bool, procInfo ProcInfo) *ProxySession {
 	s := &ProxySession{
-		cfg:           cfg,
-		watch:         watch,
-		appConn:       conn,
-		appConnReader: bufio.NewReader(conn),
-		errChan:       make(chan error, 2),
-		procInfo:      procInfo,
+		torControlNet:     torControlNet,
+		torControlAddress: torControlAddress,
+		watch:             watch,
+		appConn:           conn,
+		errChan:           make(chan error, 2),
+		procInfo:          procInfo,
 	}
 	return s
 }
@@ -209,7 +208,7 @@ func (s *ProxySession) getProcInfo() *procsnitch.Info {
 // (session policy) if one can be found, otherwise nil is returned.
 // Note that the connection is closed upon fatal error,
 // when we fail to lookup the proc info, we return nil and an error.
-func (s *ProxySession) getFilterPolicy() (*ServerClientFilterConfig, error) {
+func (s *ProxySession) getFilterPolicy() (*SievePolicyJSONConfig, error) {
 	procInfo := s.getProcInfo()
 	if procInfo == nil {
 		s.appConn.Close()
@@ -225,11 +224,14 @@ func (s *ProxySession) getFilterPolicy() (*ServerClientFilterConfig, error) {
 	return filter, nil
 }
 
+// initTorControl connects and authenticates with the tor control port.
+// XXX TODO - authenticate properly for the cases when password or cookie
+// authentication schemes are used.
 func (s *ProxySession) initTorControl() error {
 	var err error
 
 	// Connect to the real control port.
-	if s.torConn, err = bulb.Dial("unix", s.cfg.TorControlSocketPath); err != nil {
+	if s.torConn, err = bulb.Dial(s.torControlNet, s.torControlAddress); err != nil {
 		return fmt.Errorf("ERR/tor: Failed to connect to tor control port: %v", err)
 	}
 
@@ -256,7 +258,6 @@ func (s *ProxySession) sessionWorker() {
 	log.Printf("INFO/tor: New ctrl connection from: %s", clientAddr)
 
 	if s.policy == nil {
-		log.Print("No existing policy found.")
 		s.policy, err = s.getFilterPolicy()
 		if err != nil || s.policy == nil {
 			log.Printf("proc info query failure; connection from %s aborted: %s\n", clientAddr, err)
@@ -276,18 +277,7 @@ func (s *ProxySession) sessionWorker() {
 		}
 	}
 	if s.policy != nil {
-		s.clientFilterPolicy = &FilterConfig{
-			Allowed:             s.policy.ClientAllowed,
-			AllowedPrefixes:     s.policy.ClientAllowedPrefixes,
-			Replacements:        s.policy.ClientReplacements,
-			ReplacementPrefixes: s.policy.ClientReplacementPrefixes,
-		}
-		s.serverFilterPolicy = &FilterConfig{
-			Allowed:             s.policy.ServerAllowed,
-			AllowedPrefixes:     s.policy.ServerAllowedPrefixes,
-			Replacements:        s.policy.ServerReplacements,
-			ReplacementPrefixes: s.policy.ServerReplacementPrefixes,
-		}
+		s.clientSieve, s.serverSieve = s.policy.GetSieves()
 	}
 
 	// Authenticate with the real control port
@@ -298,7 +288,6 @@ func (s *ProxySession) sessionWorker() {
 	}
 	defer s.torConn.Close()
 
-	s.appConnReader = bufio.NewReader(s.appConn)
 	s.Add(2)
 	go s.proxyFilterTorToApp()
 	go s.proxyFilterAppToTor()
@@ -314,15 +303,20 @@ func (s *ProxySession) sessionWorker() {
 	}
 }
 
+// writeAppConn uses a lock so that both connection processing goroutines
+// can write to the client connection.
+func (s *ProxySession) writeAppConn(b []byte) (int, error) {
+	s.appConnLock.Lock()
+	defer s.appConnLock.Unlock()
+	return s.appConn.Write(b)
+}
+
+// proxyFilterTorToApp is used to filter the tor control
+// port message sent to the client. Either we let a message
+// pass if there is an allow rule otherwise we send nothing.
+// If watch-mode is enabled we pass the message through.
 func (s *ProxySession) proxyFilterTorToApp() {
 	defer s.Done()
-
-	var appConnLock sync.Mutex
-	writeAppConn := func(b []byte) (int, error) {
-		appConnLock.Lock() // XXX is the lock really needed here?
-		defer appConnLock.Unlock()
-		return s.appConn.Write(b)
-	}
 
 	rd := bufio.NewReader(s.torConn)
 	for {
@@ -334,26 +328,38 @@ func (s *ProxySession) proxyFilterTorToApp() {
 		lineStr := strings.TrimSpace(string(line))
 		log.Printf("A<-T: [%s]\n", lineStr)
 		if s.watch {
-			if _, err = writeAppConn([]byte(lineStr + "\r\n")); err != nil {
+			if _, err = s.writeAppConn([]byte(lineStr + "\r\n")); err != nil {
 				s.errChan <- err
 				break
 			}
 		} else {
-			filterCommand(lineStr, "250 OK", writeAppConn, s.errChan, s.serverFilterPolicy)
+			outputMessage := s.serverSieve.Filter(lineStr)
+			if outputMessage != "" {
+				_, err := s.writeAppConn([]byte(outputMessage + "\r\n"))
+				if err != nil {
+					s.errChan <- err
+					break
+				}
+			}
 		}
 	}
 }
 
+// proxyFilterAppToTor is used for message routing to accomplish
+// unidirectional filtration, message replacement
+// and policy denied error message forwarding back to the client
+// like this:
+//
+// client message ---> sieve ---> message
+//                      | \-----> replacement message
+// error message <------/
+//
+// If watch-mode is enabled we pipeline messages without filtration.
 func (s *ProxySession) proxyFilterAppToTor() {
 	defer s.Done()
-
-	writeToTor := func(line []byte) (int, error) {
-		n, err := s.torConn.Write([]byte(line))
-		return n, err
-	}
-
+	appConnReader := bufio.NewReader(s.appConn)
 	for {
-		line, err := s.appConnReader.ReadBytes('\n')
+		line, err := appConnReader.ReadBytes('\n')
 		if err != nil {
 			s.errChan <- err
 			break
@@ -362,12 +368,20 @@ func (s *ProxySession) proxyFilterAppToTor() {
 		log.Printf("A->T: [%s]\n", lineStr)
 
 		if s.watch {
-			_, err = writeToTor([]byte(lineStr + "\r\n"))
+			_, err := s.torConn.Write([]byte(lineStr + "\r\n"))
 			if err != nil {
 				s.errChan <- err
 			}
 		} else {
-			filterCommand(lineStr, "", writeToTor, s.errChan, s.clientFilterPolicy)
+			outputMessage := s.clientSieve.Filter(lineStr)
+			if outputMessage == "" {
+				_, err = s.writeAppConn([]byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
+			} else {
+				_, err = s.torConn.Write([]byte(outputMessage + "\r\n"))
+			}
+			if err != nil {
+				s.errChan <- err
+			}
 		}
 	}
 }

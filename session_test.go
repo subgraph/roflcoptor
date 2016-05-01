@@ -29,19 +29,20 @@ func (r MockProcInfo) LookupTCPSocketProcess(srcPort uint16, dstAddr net.IP, dst
 }
 
 type AccumulatingListener struct {
-	socketPath string
-	buffer     bytes.Buffer
+	net, address string
+	buffer       bytes.Buffer
 }
 
-func NewAccumulatingListener(socketPath string) *AccumulatingListener {
+func NewAccumulatingListener(net, address string) *AccumulatingListener {
 	l := AccumulatingListener{
-		socketPath: socketPath,
+		net:     net,
+		address: address,
 	}
 	return &l
 }
 
 func (a *AccumulatingListener) AcceptLoop() {
-	listener, err := net.Listen("unix", a.socketPath)
+	listener, err := net.Listen(a.net, a.address)
 	if err != nil {
 		panic(err)
 	}
@@ -82,11 +83,12 @@ func (a *AccumulatingListener) SessionWorker(conn net.Conn) {
 func TestProxyListenerSession(t *testing.T) {
 	var err error
 	config := RoflcoptorConfig{
-		LogFile:              "-",
-		FiltersPath:          "./filters",
-		ListenNet:            "tcp",
-		ListenAddress:        "127.0.0.1:4356",
-		TorControlSocketPath: "tor_control",
+		LogFile:           "-",
+		FiltersPath:       "./filters",
+		ListenNet:         "tcp",
+		ListenAddress:     "127.0.0.1:4356",
+		TorControlNet:     "unix",
+		TorControlAddress: "tor_control",
 	}
 
 	if _, err = loadFilters(config.FiltersPath); err != nil {
@@ -96,15 +98,10 @@ func TestProxyListenerSession(t *testing.T) {
 	wg := sync.WaitGroup{}
 	watch := false
 
-	accListener := NewAccumulatingListener(config.TorControlSocketPath)
+	accListener := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
 	go accListener.AcceptLoop()
 
-	proxyListener, err := NewProxyListener(&config, &wg, watch)
-	if err != nil {
-		t.Errorf("failed to create proxy listener: %s", err)
-		t.Fail()
-	}
-
+	proxyListener := NewProxyListener(&config, &wg, watch)
 	proxyListener.procInfo = MockProcInfo{}
 
 	go proxyListener.FilterAcceptLoop()
@@ -117,7 +114,7 @@ func TestProxyListenerSession(t *testing.T) {
 	}
 	defer torConn.Close()
 	torConn.Debug(true)
-	defer os.Remove(config.TorControlSocketPath)
+	defer os.Remove(config.TorControlAddress)
 
 	err = torConn.Authenticate("")
 	if err != nil {

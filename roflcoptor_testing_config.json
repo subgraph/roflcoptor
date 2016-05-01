@@ -3,5 +3,6 @@
     "FiltersPath" : "./filters",
     "ListenNet" : "tcp",
     "ListenAddress" : "127.0.0.1:8851",
-    "TorControlSocketPath" : "/var/run/tor/control"
+    "TorControlNet" : "unix",
+    "TorControlAddress" : "/var/run/tor/control"
 }

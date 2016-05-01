@@ -53,11 +53,12 @@ import (
 // RoflcoptorConfig is used to configure our
 // tor contorl port filtering proxy daemon
 type RoflcoptorConfig struct {
-	LogFile              string
-	FiltersPath          string
-	ListenNet            string
-	ListenAddress        string
-	TorControlSocketPath string
+	LogFile           string
+	FiltersPath       string
+	ListenNet         string
+	ListenAddress     string
+	TorControlNet     string
+	TorControlAddress string
 }
 
 func loadConfiguration(configFilePath string) (*RoflcoptorConfig, error) {
@@ -114,8 +115,7 @@ func main() {
 	}
 
 	var wg sync.WaitGroup
-	var proxyListener *ProxyListener
-	proxyListener, err = NewProxyListener(config, &wg, watchMode)
-	proxyListener.InitAllListeners()
+	proxyListener := NewProxyListener(config, &wg, watchMode)
+	proxyListener.StartListeners()
 	wg.Wait()
 }
