@@ -1,0 +1,10 @@
+[Unit]
+Description=roflcoptor - onion router control port filtration daemon
+After=tor.service
+
+[Service]
+Type=simple
+User=debian-tor
+Group=debian-tor
+WorkingDirectory=/var/log/tor
+ExecStart=/home/user/gopath/bin/roflcoptor -config /home/user/code/roflcoptor/roflcoptor_testing_config.json
