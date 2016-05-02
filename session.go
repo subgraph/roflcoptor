@@ -283,6 +283,10 @@ func (s *ProxySession) sessionWorker() {
 	if s.policy == nil {
 		s.policy = s.getFilterPolicy()
 		if s.policy == nil {
+			_, err = s.writeAppConn([]byte("510 Tor Control proxy connection denied.\r\n"))
+			if err != nil {
+				s.errChan <- err
+			}
 			return
 		}
 	} else {
@@ -293,6 +297,10 @@ func (s *ProxySession) sessionWorker() {
 		if procInfo.ExePath != "/usr/sbin/oz-daemon" {
 			// denied!
 			log.Printf("ALERT/tor: pre auth socket was connected to by a app other than the oz-daemon")
+			_, err = s.writeAppConn([]byte("510 Tor Control proxy connection denied.\r\n"))
+			if err != nil {
+				s.errChan <- err
+			}
 			return
 		}
 	}
