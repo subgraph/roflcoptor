@@ -118,48 +118,53 @@ func (s *Sieve) isCommandAllowed(message string) bool {
 	return false
 }
 
-// XXX TODO - clean up this code below so that it uses struct receiver methods
-
 var commentRegexp = regexp.MustCompile("^[ \t]*#")
-var loadedFilters []*SievePolicyJSONConfig
 
-func newDefaultFilter() *SievePolicyJSONConfig {
-	return &SievePolicyJSONConfig{
-		UserID: -1,
-	}
+type PolicyList struct {
+	loadedFilters []*SievePolicyJSONConfig
 }
 
-func loadFilters(dpath string) ([]*SievePolicyJSONConfig, error) {
-	fs, err := ioutil.ReadDir(dpath)
+// ListenAddr represents a network endpoint
+type ListenAddr struct {
+	net     string
+	address string
+}
+
+func NewPolicyList() PolicyList {
+	policyList := PolicyList{}
+	return policyList
+}
+
+func (p *PolicyList) LoadFilters(directoryPath string) error {
+	fs, err := ioutil.ReadDir(directoryPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	lf := []*SievePolicyJSONConfig{}
 	for _, f := range fs {
 		if !f.IsDir() {
-			name := path.Join(dpath, f.Name())
+			name := path.Join(directoryPath, f.Name())
 			if strings.HasSuffix(f.Name(), ".json") {
-				ff, err := loadFilterFile(name)
+				ff, err := p.LoadFilterFile(name)
 				if err != nil || ff == nil {
 					log.Printf("error loading '%s': %v", f.Name(), err)
 					continue
 				}
 				log.Printf("Loaded filter for: %s (%d)\n", ff.ExecPath, ff.UserID)
-				lf = append(lf, ff)
+				lf = append([]*SievePolicyJSONConfig(lf), ff)
 			}
 		}
 	}
-
-	loadedFilters = lf
-	return lf, nil
+	p.loadedFilters = lf
+	return nil
 }
 
-func loadFilterFile(fpath string) (*SievePolicyJSONConfig, error) {
+func (p *PolicyList) LoadFilterFile(filePath string) (*SievePolicyJSONConfig, error) {
 	//if err := checkConfigPermissions(fpath); err != nil {
 	//	return nil, err
 	//}
 
-	file, err := os.Open(fpath)
+	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +176,9 @@ func loadFilterFile(fpath string) (*SievePolicyJSONConfig, error) {
 			bs += line + "\n"
 		}
 	}
-	f := newDefaultFilter()
+	f := &SievePolicyJSONConfig{
+		UserID: -1,
+	}
 	if err := json.Unmarshal([]byte(bs), f); err != nil {
 		return nil, err
 	}
@@ -181,15 +188,9 @@ func loadFilterFile(fpath string) (*SievePolicyJSONConfig, error) {
 	return f, nil
 }
 
-// ListenAddr represents a network endpoint
-type ListenAddr struct {
-	net     string
-	address string
-}
-
-func getListenerAddresses() []ListenAddr {
+func (p *PolicyList) getListenerAddresses() []ListenAddr {
 	addrList := []ListenAddr{}
-	for _, filter := range loadedFilters {
+	for _, filter := range p.loadedFilters {
 		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
 			l := ListenAddr{
 				net:     filter.AuthNetAddr,
@@ -201,9 +202,9 @@ func getListenerAddresses() []ListenAddr {
 	return addrList
 }
 
-func getAuthenticatedPolicyListeners() map[net.Listener]*SievePolicyJSONConfig {
+func (p *PolicyList) getAuthenticatedPolicyListeners() map[net.Listener]*SievePolicyJSONConfig {
 	listenerMap := make(map[net.Listener]*SievePolicyJSONConfig)
-	for _, filter := range loadedFilters {
+	for _, filter := range p.loadedFilters {
 		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
 			listener, err := net.Listen(filter.AuthNetAddr, filter.AuthAddr)
 			if err != nil {
@@ -215,8 +216,8 @@ func getAuthenticatedPolicyListeners() map[net.Listener]*SievePolicyJSONConfig {
 	return listenerMap
 }
 
-func getFilterForPath(path string) *SievePolicyJSONConfig {
-	for _, filter := range loadedFilters {
+func (p *PolicyList) getFilterForPath(path string) *SievePolicyJSONConfig {
+	for _, filter := range p.loadedFilters {
 		if filter.ExecPath == path && filter.UserID == -1 {
 			return filter
 		}
@@ -224,8 +225,8 @@ func getFilterForPath(path string) *SievePolicyJSONConfig {
 	return nil
 }
 
-func getFilterForPathAndUID(path string, uid int) *SievePolicyJSONConfig {
-	for _, filter := range loadedFilters {
+func (p *PolicyList) getFilterForPathAndUID(path string, uid int) *SievePolicyJSONConfig {
+	for _, filter := range p.loadedFilters {
 		if filter.ExecPath == path && filter.UserID == uid {
 			return filter
 		}

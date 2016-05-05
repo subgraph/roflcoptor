@@ -110,10 +110,6 @@ func main() {
 		log.SetOutput(f)
 	}
 
-	if _, err = loadFilters(config.FiltersPath); err != nil {
-		log.Fatalf("Unable to load filters: %s\n", err)
-	}
-
 	var wg sync.WaitGroup
 	proxyListener := NewProxyListener(config, &wg, watchMode)
 	proxyListener.StartListeners()

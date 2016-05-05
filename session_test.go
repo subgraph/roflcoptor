@@ -91,7 +91,8 @@ func TestProxyListenerSession(t *testing.T) {
 		TorControlAddress: "tor_control",
 	}
 
-	if _, err = loadFilters(config.FiltersPath); err != nil {
+	policyList := NewPolicyList()
+	if err = policyList.LoadFilters(config.FiltersPath); err != nil {
 		panic(fmt.Sprintf("Unable to load filters: %s\n", err))
 	}
 
@@ -104,7 +105,7 @@ func TestProxyListenerSession(t *testing.T) {
 	proxyListener := NewProxyListener(&config, &wg, watch)
 	proxyListener.procInfo = MockProcInfo{}
 
-	go proxyListener.FilterAcceptLoop()
+	proxyListener.StartListeners()
 
 	var torConn *bulb.Conn
 	torConn, err = bulb.Dial("tcp", "127.0.0.1:4356")

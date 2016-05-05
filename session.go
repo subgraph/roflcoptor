@@ -41,16 +41,18 @@ type ProxyListener struct {
 	onionDenyAddrs []ListenAddr
 	errChan        chan error
 	procInfo       ProcInfo
+	policyList     PolicyList
 }
 
 // NewProxyListener creates a new ProxyListener given
 // a configuration structure.
 func NewProxyListener(cfg *RoflcoptorConfig, wg *sync.WaitGroup, watch bool) *ProxyListener {
 	p := ProxyListener{
-		cfg:      cfg,
-		wg:       wg,
-		watch:    watch,
-		procInfo: RealProcInfo{},
+		cfg:        cfg,
+		wg:         wg,
+		watch:      watch,
+		procInfo:   RealProcInfo{},
+		policyList: NewPolicyList(),
 	}
 	return &p
 }
@@ -66,6 +68,7 @@ func NewProxyListener(cfg *RoflcoptorConfig, wg *sync.WaitGroup, watch bool) *Pr
 // by other means. All applications running from an Oz shell will appear to have
 // the same exec path of "/usr/sbin/oz-daemon"
 func (p *ProxyListener) StartListeners() {
+	p.policyList.LoadFilters(p.cfg.FiltersPath)
 	// compile a list of all control ports;
 	// we black list them from being the onion target address
 	p.compileOnionAddrBlacklist()
@@ -78,7 +81,7 @@ func (p *ProxyListener) StartListeners() {
 }
 
 func (p *ProxyListener) compileOnionAddrBlacklist() {
-	p.onionDenyAddrs = getListenerAddresses()
+	p.onionDenyAddrs = p.policyList.getListenerAddresses()
 	p.onionDenyAddrs = append(p.onionDenyAddrs, ListenAddr{
 		net:     p.cfg.TorControlNet,
 		address: p.cfg.TorControlAddress,
@@ -92,7 +95,7 @@ func (p *ProxyListener) compileOnionAddrBlacklist() {
 // InitAuthenticatedListeners runs each auth listener
 // in it's own goroutine.
 func (p *ProxyListener) InitAuthenticatedListeners() {
-	listenerPolicyMap := getAuthenticatedPolicyListeners()
+	listenerPolicyMap := p.policyList.getAuthenticatedPolicyListeners()
 	for listener, policy := range listenerPolicyMap {
 		go p.AuthListener(listener, policy)
 	}
@@ -147,7 +150,7 @@ func (p *ProxyListener) FilterAcceptLoop() {
 		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(), conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
 
 		// Create the appropriate session instance.
-		s := NewProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo)
+		s := NewProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, p.policyList)
 		go s.sessionWorker()
 	}
 }
@@ -161,6 +164,7 @@ type ProxySession struct {
 	watch             bool
 	procInfo          ProcInfo
 	policy            *SievePolicyJSONConfig
+	policyList        PolicyList
 
 	clientSieve *Sieve
 	serverSieve *Sieve
@@ -189,7 +193,7 @@ func NewAuthProxySession(conn net.Conn, torControlNet, torControlAddress string,
 
 // NewProxySession creates a ProxySession given a client's connection
 // to our proxy listener and a watch bool.
-func NewProxySession(conn net.Conn, torControlNet, torControlAddress string, addOnionDenyList []ListenAddr, watch bool, procInfo ProcInfo) *ProxySession {
+func NewProxySession(conn net.Conn, torControlNet, torControlAddress string, addOnionDenyList []ListenAddr, watch bool, procInfo ProcInfo, policyList PolicyList) *ProxySession {
 	s := &ProxySession{
 		torControlNet:     torControlNet,
 		torControlAddress: torControlAddress,
@@ -198,6 +202,7 @@ func NewProxySession(conn net.Conn, torControlNet, torControlAddress string, add
 		appConn:           conn,
 		errChan:           make(chan error, 2),
 		procInfo:          procInfo,
+		policyList:        policyList,
 	}
 	return s
 }
@@ -236,9 +241,9 @@ func (s *ProxySession) getFilterPolicy() *SievePolicyJSONConfig {
 		log.Printf("Could not find process information for connection %s:%s", s.appConn.LocalAddr().Network(), s.appConn.LocalAddr().String())
 		return nil
 	}
-	filter := getFilterForPathAndUID(procInfo.ExePath, procInfo.UID)
+	filter := s.policyList.getFilterForPathAndUID(procInfo.ExePath, procInfo.UID)
 	if filter == nil {
-		filter = getFilterForPath(procInfo.ExePath)
+		filter = s.policyList.getFilterForPath(procInfo.ExePath)
 	}
 	if filter == nil {
 		log.Println("Filter policy not found for:", procInfo.ExePath)
