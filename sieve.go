@@ -124,12 +124,6 @@ type PolicyList struct {
 	loadedFilters []*SievePolicyJSONConfig
 }
 
-// ListenAddr represents a network endpoint
-type ListenAddr struct {
-	net     string
-	address string
-}
-
 func NewPolicyList() PolicyList {
 	policyList := PolicyList{}
 	return policyList
@@ -188,13 +182,13 @@ func (p *PolicyList) LoadFilterFile(filePath string) (*SievePolicyJSONConfig, er
 	return f, nil
 }
 
-func (p *PolicyList) getListenerAddresses() []ListenAddr {
-	addrList := []ListenAddr{}
+func (p *PolicyList) getListenerAddresses() []AddrString {
+	addrList := []AddrString{}
 	for _, filter := range p.loadedFilters {
 		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
-			l := ListenAddr{
-				net:     filter.AuthNetAddr,
-				address: filter.AuthAddr,
+			l := AddrString{
+				Net:     filter.AuthNetAddr,
+				Address: filter.AuthAddr,
 			}
 			addrList = append(addrList, l)
 		}

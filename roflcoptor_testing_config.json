@@ -1,8 +1,16 @@
 {
     "LogFile" : "-",
     "FiltersPath" : "./filters",
-    "ListenNet" : "tcp",
-    "ListenAddress" : "127.0.0.1:8851",
     "TorControlNet" : "unix",
-    "TorControlAddress" : "/var/run/tor/control"
+    "TorControlAddress" : "/var/run/tor/control",
+    "Listeners" : [
+	{
+	    "Net" : "unix",
+	    "Address" : "/home/user/roflcoptor.socket"
+	},
+	{
+	    "Net" : "tcp",
+	    "Address" : "127.0.0.1:8851"
+	}
+    ]
 }

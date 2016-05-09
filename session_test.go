@@ -28,6 +28,17 @@ func (r MockProcInfo) LookupTCPSocketProcess(srcPort uint16, dstAddr net.IP, dst
 	return &info
 }
 
+func (r MockProcInfo) LookupUNIXSocketProcess(socketFile string) *procsnitch.Info {
+	info := procsnitch.Info{
+		UID:       1,
+		Pid:       1,
+		ParentPid: 1,
+		ExePath:   "/usr/local/bin/ricochet",
+		CmdLine:   "testing_cmd_line",
+	}
+	return &info
+}
+
 type AccumulatingListener struct {
 	net, address string
 	buffer       bytes.Buffer
@@ -82,11 +93,16 @@ func (a *AccumulatingListener) SessionWorker(conn net.Conn) {
 
 func TestProxyListenerSession(t *testing.T) {
 	var err error
+	listeners := []AddrString{
+		{
+			Net:     "tcp",
+			Address: "127.0.0.1:4356",
+		},
+	}
 	config := RoflcoptorConfig{
 		LogFile:           "-",
 		FiltersPath:       "./filters",
-		ListenNet:         "tcp",
-		ListenAddress:     "127.0.0.1:4356",
+		Listeners:         listeners,
 		TorControlNet:     "unix",
 		TorControlAddress: "tor_control",
 	}
@@ -101,10 +117,8 @@ func TestProxyListenerSession(t *testing.T) {
 
 	accListener := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
 	go accListener.AcceptLoop()
-
 	proxyListener := NewProxyListener(&config, &wg, watch)
 	proxyListener.procInfo = MockProcInfo{}
-
 	proxyListener.StartListeners()
 
 	var torConn *bulb.Conn

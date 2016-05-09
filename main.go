@@ -55,10 +55,15 @@ import (
 type RoflcoptorConfig struct {
 	LogFile           string
 	FiltersPath       string
-	ListenNet         string
-	ListenAddress     string
+	Listeners         []AddrString
 	TorControlNet     string
 	TorControlAddress string
+}
+
+// AddrString represents a network endpoint with two strings
+type AddrString struct {
+	Net     string
+	Address string
 }
 
 func loadConfiguration(configFilePath string) (*RoflcoptorConfig, error) {
