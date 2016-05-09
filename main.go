@@ -1,31 +1,5 @@
-/*
- * main.go - or-ctl-filter
- * Copyright (C) 2014  Yawning Angel
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-// or-ctl-filter is a Tor Control Port filter daemon which does bidirectional
-// filtering of Tor control port commands with, blocking everything by
-// default and only allowing commands specified on one of the "white-lists".
-// or-ctl-filter uses several different kinds of white-lists, namely:
-//
-// - client-allowed: requires exact string match
-// - client-allowed-prefixes: allows the commands if it matches one of the prefixes
-// - client-replacements: replaces commands with exact string match with another string
-// - client-replacement-prefixes: replaces commands with a prefix match
-// - server-...
+// roflcoptor is a Tor Control Port filter daemon which does bidirectional
+// filtering.
 //
 // It is not only limited to the use case "I want to run Tor Browser on my desktop with a
 // system tor service and have 'about:tor' and 'New Identity' work while
