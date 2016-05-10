@@ -135,7 +135,6 @@ func (r RealProcInfo) LookupUNIXSocketProcess(socketFile string) *procsnitch.Inf
 type ProxyListener struct {
 	cfg            *RoflcoptorConfig
 	watch          bool
-	wg             *sync.WaitGroup
 	services       []*MortalListener
 	authedServices []*MortalListener
 	onionDenyAddrs []AddrString
@@ -146,10 +145,9 @@ type ProxyListener struct {
 
 // NewProxyListener creates a new ProxyListener given
 // a configuration structure.
-func NewProxyListener(cfg *RoflcoptorConfig, wg *sync.WaitGroup, watch bool) *ProxyListener {
+func NewProxyListener(cfg *RoflcoptorConfig, watch bool) *ProxyListener {
 	p := ProxyListener{
 		cfg:        cfg,
-		wg:         wg,
 		watch:      watch,
 		procInfo:   RealProcInfo{},
 		policyList: NewPolicyList(),

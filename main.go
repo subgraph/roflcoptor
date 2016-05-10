@@ -22,7 +22,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 )
 
 // RoflcoptorConfig is used to configure our
@@ -93,8 +92,7 @@ func main() {
 	sigKillChan := make(chan os.Signal, 1)
 	signal.Notify(sigKillChan, os.Interrupt, os.Kill)
 
-	var wg sync.WaitGroup
-	proxyListener := NewProxyListener(config, &wg, watchMode)
+	proxyListener := NewProxyListener(config, watchMode)
 	proxyListener.StartListeners()
 	defer proxyListener.StopListeners()
 	for {

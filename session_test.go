@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -115,12 +114,11 @@ func TestProxyListenerSession(t *testing.T) {
 		panic(fmt.Sprintf("Unable to load filters: %s\n", err))
 	}
 
-	wg := sync.WaitGroup{}
 	watch := false
 
 	accListener := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
 	go accListener.AcceptLoop()
-	proxyListener := NewProxyListener(&config, &wg, watch)
+	proxyListener := NewProxyListener(&config, watch)
 	proxyListener.procInfo = MockProcInfo{}
 	proxyListener.StartListeners()
 
