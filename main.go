@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"sync"
 )
 
@@ -89,8 +90,17 @@ func main() {
 		log.SetOutput(f)
 	}
 
+	sigKillChan := make(chan os.Signal, 1)
+	signal.Notify(sigKillChan, os.Interrupt, os.Kill)
+
 	var wg sync.WaitGroup
 	proxyListener := NewProxyListener(config, &wg, watchMode)
 	proxyListener.StartListeners()
-	wg.Wait()
+	defer proxyListener.StopListeners()
+	for {
+		select {
+		case <-sigKillChan:
+			return
+		}
+	}
 }

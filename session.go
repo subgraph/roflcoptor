@@ -14,6 +14,100 @@ import (
 	"github.com/yawning/bulb"
 )
 
+// MortalListener can be killed at any time.
+type MortalListener struct {
+	network            string
+	address            string
+	connectionCallback func(net.Conn) error
+
+	conns []net.Conn
+	quit  chan bool
+	ln    net.Listener
+}
+
+// NewMortalListener creates a new MortalListener
+func NewMortalListener(network, address string, connectionCallback func(net.Conn) error) *MortalListener {
+	l := MortalListener{
+		network:            network,
+		address:            address,
+		connectionCallback: connectionCallback,
+
+		conns: make([]net.Conn, 0, 10),
+		quit:  make(chan bool),
+	}
+	return &l
+}
+
+// Stop will kill our listener and all it's connections
+func (l *MortalListener) Stop() {
+	log.Printf("stopping listener service %s:%s", l.network, l.address)
+	close(l.quit)
+	if l.ln != nil {
+		l.ln.Close()
+	}
+}
+
+// Start the MortalListener
+func (l *MortalListener) Start() error {
+	var err error
+	defer func() {
+		log.Printf("stoping listener service %s:%s", l.network, l.address)
+		for i, conn := range l.conns {
+			if conn != nil {
+				log.Printf("Closing connection #%d", i)
+				conn.Close()
+			}
+		}
+	}()
+
+	l.ln, err = net.Listen(l.network, l.address)
+	if err != nil {
+		return err
+	}
+	defer l.ln.Close()
+
+	for {
+		log.Printf("Listening for connections on %s:%s", l.network, l.address)
+		conn, err := l.ln.Accept()
+
+		if err != nil {
+			log.Printf("MortalListener connection accept failure: %s\n", err)
+			select {
+			case <-l.quit:
+				return nil
+			default:
+			}
+
+			continue
+		}
+
+		l.conns = append(l.conns, conn)
+		go l.handleConnection(conn, len(l.conns)-1)
+	}
+	return nil
+}
+
+func (l *MortalListener) handleConnection(conn net.Conn, id int) error {
+	defer func() {
+		log.Printf("Closing connection #%d", id)
+		conn.Close()
+		l.conns[id] = nil
+	}()
+
+	log.Print("Starting connection #%d", id)
+
+	for {
+		// If l.connectionCallback returns, then it's either
+		// because the socket is closed (err == nil), or there's some type of
+		// real error.
+		if err := l.connectionCallback(conn); err != nil {
+			log.Println(err.Error())
+			return err
+		}
+		return nil
+	}
+}
+
 // ProcInfo represents an api that can be used to query process information about
 // the far side of a network connection
 type ProcInfo interface {
@@ -42,7 +136,8 @@ type ProxyListener struct {
 	cfg            *RoflcoptorConfig
 	watch          bool
 	wg             *sync.WaitGroup
-	listener       net.Listener
+	services       []*MortalListener
+	authedServices []*MortalListener
 	onionDenyAddrs []AddrString
 	errChan        chan error
 	procInfo       ProcInfo
@@ -80,11 +175,31 @@ func (p *ProxyListener) StartListeners() {
 
 	// Previously authenticated listeners can be any network type
 	// including UNIX domain sockets.
-	p.InitAuthenticatedListeners()
-	for _, listener := range p.cfg.Listeners {
-		p.wg.Add(1)
-		go p.FilterAcceptLoop(listener.Net, listener.Address)
+	p.initAuthenticatedListeners()
+
+	// start the main listeners
+	handleNewConnection := func(conn net.Conn) error {
+		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
+			conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
+		s := NewProxySession(conn,
+			p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, p.policyList)
+		s.sessionWorker()
+		return nil
 	}
+	for _, location := range p.cfg.Listeners {
+		p.services = append(p.services, NewMortalListener(location.Net, location.Address, handleNewConnection))
+		go p.services[len(p.services)-1].Start()
+	}
+}
+
+func (p *ProxyListener) StopListeners() {
+	stopServices := func(services []*MortalListener) {
+		for _, service := range services {
+			service.Stop()
+		}
+	}
+	stopServices(p.services)
+	stopServices(p.authedServices)
 }
 
 func (p *ProxyListener) compileOnionAddrBlacklist() {
@@ -103,66 +218,23 @@ func (p *ProxyListener) compileOnionAddrBlacklist() {
 
 // InitAuthenticatedListeners runs each auth listener
 // in it's own goroutine.
-func (p *ProxyListener) InitAuthenticatedListeners() {
-	listenerPolicyMap := p.policyList.getAuthenticatedPolicyListeners()
-	for listener, policy := range listenerPolicyMap {
-		go p.AuthListener(listener, policy)
-	}
-}
-
-// AuthListener implements a connection accept loop
-// where we dispatch a new session worker for each connection
-// with a previously authenticated policy
-func (p *ProxyListener) AuthListener(listener net.Listener, policy *SievePolicyJSONConfig) {
-	p.wg.Add(1)
-	defer listener.Close()
-	defer p.wg.Done()
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			if e, ok := err.(net.Error); ok && !e.Temporary() {
-				log.Printf("ERR/tor: Failed to Accept(): %v", err)
-			}
+func (p *ProxyListener) initAuthenticatedListeners() {
+	locations := p.policyList.getAuthenticatedPolicyAddresses()
+	for location, policy := range locations {
+		handleNewConnection := func(conn net.Conn) error {
+			log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
+				conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
+			s := NewAuthProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, policy)
+			s.sessionWorker()
+			return nil
 		}
-
-		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(), conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
-
-		// Create the appropriate session instance.
-		s := NewAuthProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, policy)
-		go s.sessionWorker()
+		p.authedServices = append(p.authedServices, NewMortalListener(location.Net, location.Address, handleNewConnection))
+		go p.authedServices[len(p.authedServices)-1].Start()
 	}
 }
 
 // FilterAcceptLoop and listens and accepts new
 // connections and passes them into our filter proxy pipeline
-func (p *ProxyListener) FilterAcceptLoop(netStr, address string) {
-	var err error
-	defer p.wg.Done()
-
-	p.listener, err = net.Listen(netStr, address)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to listen on the filter port: %s\n", err))
-	}
-	defer p.listener.Close()
-
-	// Listen for incoming connections, and dispatch workers.
-	// XXX TODO use a select statement to implement a stop/shutdown channel?
-	for {
-		conn, err := p.listener.Accept()
-		if err != nil {
-			if e, ok := err.(net.Error); ok && !e.Temporary() {
-				log.Printf("ERR/tor: Failed to Accept(): %v", err)
-			}
-		}
-
-		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(), conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
-
-		// Create the appropriate session instance.
-		s := NewProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, p.policyList)
-		go s.sessionWorker()
-	}
-}
 
 // ProxySession is used to manage is single Tor Control port filter proxy session
 type ProxySession struct {

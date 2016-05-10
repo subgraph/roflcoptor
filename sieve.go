@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"path"
 	"regexp"
@@ -196,15 +195,15 @@ func (p *PolicyList) getListenerAddresses() []AddrString {
 	return addrList
 }
 
-func (p *PolicyList) getAuthenticatedPolicyListeners() map[net.Listener]*SievePolicyJSONConfig {
-	listenerMap := make(map[net.Listener]*SievePolicyJSONConfig)
+func (p *PolicyList) getAuthenticatedPolicyAddresses() map[AddrString]*SievePolicyJSONConfig {
+	listenerMap := make(map[AddrString]*SievePolicyJSONConfig)
 	for _, filter := range p.loadedFilters {
 		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
-			listener, err := net.Listen(filter.AuthNetAddr, filter.AuthAddr)
-			if err != nil {
-				panic(err)
+			addrString := AddrString{
+				Net:     filter.AuthNetAddr,
+				Address: filter.AuthAddr,
 			}
-			listenerMap[listener] = filter
+			listenerMap[addrString] = filter
 		}
 	}
 	return listenerMap
