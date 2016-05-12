@@ -80,16 +80,26 @@ func TestFilter(t *testing.T) {
 
 func TestLoadFilters(t *testing.T) {
 	p := NewPolicyList()
+
 	err := p.LoadFilters("not_exist")
 	if err == nil {
 		t.Errorf("LoadFilters should have err`ed")
 		t.Fail()
 	}
+
+	// we have no policies loaded so this should fail
+	policy := p.getFilterForPath("not_an_existent_exec_path")
+	if policy != nil {
+		t.Errorf("getFilterForPath should have err`ed")
+		t.Fail()
+	}
+
 	invalid_content := []byte("temporary file's content")
 	valid_content := []byte(`
 {
     "AuthNetAddr" : "tcp",
     "AuthAddr" : "127.0.0.1:6651",
+    "user-id" : 123,
     "exec-path": "/srv/oz/rootfs/home/user/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/firefox",
     "client-allowed" : ["SIGNAL NEWNYM","GETINFO net/listeners/socks", "GETCONF UseBridges", "GETCONF Bridge",
 			"GETCONF Socks4Proxy", "GETCONF Socks5Proxy", "GETCONF HTTPSProxy",
@@ -124,6 +134,20 @@ func TestLoadFilters(t *testing.T) {
 		t.Errorf("LoadFilters should have succeeded")
 		t.Fail()
 	}
+
+	// we have no policies with this exec path; should fail
+	policy = p.getFilterForPath("not_an_existent_exec_path")
+	if policy != nil {
+		t.Errorf("getFilterForPath should have err`ed")
+		t.Fail()
+	}
+
+	policy = p.getFilterForPathAndUID("/srv/oz/rootfs/home/user/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/firefox", 123)
+	if policy == nil {
+		t.Errorf("getFilterForPathAndUID should have succeeded")
+		t.Fail()
+	}
+
 	if len(p.loadedFilters) != 1 {
 		t.Errorf("LoadFilters should have loaded one filter.")
 		t.Fail()
