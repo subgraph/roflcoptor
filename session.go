@@ -94,7 +94,7 @@ func (l *MortalListener) handleConnection(conn net.Conn, id int) error {
 		l.conns[id] = nil
 	}()
 
-	log.Print("Starting connection #%d", id)
+	log.Printf("Starting connection #%d", id)
 
 	for {
 		// If l.connectionCallback returns, then it's either
@@ -220,7 +220,7 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 	locations := p.policyList.getAuthenticatedPolicyAddresses()
 	for location, policy := range locations {
 		handleNewConnection := func(conn net.Conn) error {
-			log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
+			log.Printf("connection received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
 				conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
 			s := NewAuthProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, policy)
 			s.sessionWorker()
@@ -265,6 +265,7 @@ func NewAuthProxySession(conn net.Conn, torControlNet, torControlAddress string,
 		policy:            policy,
 		watch:             watch,
 		appConn:           conn,
+		procInfo:          procInfo,
 		errChan:           make(chan error, 2),
 	}
 	return &s
@@ -374,6 +375,7 @@ func (s *ProxySession) sessionWorker() {
 		}
 	} else {
 		procInfo := s.getProcInfo()
+		fmt.Println("getProcInfo returned", procInfo)
 		if procInfo == nil {
 			panic("proc query fail")
 		}

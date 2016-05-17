@@ -17,17 +17,22 @@ import (
 )
 
 type MockProcInfo struct {
+	procInfo *procsnitch.Info
+}
+
+func NewMockProcInfo(procInfo *procsnitch.Info) MockProcInfo {
+	p := MockProcInfo{
+		procInfo: procInfo,
+	}
+	return p
+}
+
+func (r MockProcInfo) Set(procInfo *procsnitch.Info) {
+	r.procInfo = procInfo
 }
 
 func (r MockProcInfo) LookupTCPSocketProcess(srcPort uint16, dstAddr net.IP, dstPort uint16) *procsnitch.Info {
-	info := procsnitch.Info{
-		UID:       1,
-		Pid:       1,
-		ParentPid: 1,
-		ExePath:   "/usr/local/bin/ricochet",
-		CmdLine:   "testing_cmd_line",
-	}
-	return &info
+	return r.procInfo
 }
 
 func (r MockProcInfo) LookupUNIXSocketProcess(socketFile string) *procsnitch.Info {
@@ -119,20 +124,28 @@ func TestProxyListenerSession(t *testing.T) {
 	accListener := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
 	go accListener.AcceptLoop()
 	proxyListener := NewProxyListener(&config, watch)
-	proxyListener.procInfo = MockProcInfo{}
+	ricochetProcInfo := procsnitch.Info{
+		UID:       1,
+		Pid:       1,
+		ParentPid: 1,
+		ExePath:   "/usr/local/bin/ricochet",
+		CmdLine:   "testing_cmd_line",
+	}
+	proxyListener.procInfo = NewMockProcInfo(&ricochetProcInfo)
 	proxyListener.StartListeners()
 
-	var torConn *bulb.Conn
-	torConn, err = bulb.Dial("tcp", "127.0.0.1:4356")
+	// test legit connection from ricochet
+	var proxyConn *bulb.Conn
+	proxyConn, err = bulb.Dial("tcp", "127.0.0.1:4356")
 	if err != nil {
 		t.Errorf("Failed to connect to tor control port: %v", err)
 		t.Fail()
 	}
-	defer torConn.Close()
-	torConn.Debug(true)
+	defer proxyConn.Close()
+	proxyConn.Debug(true)
 	defer os.Remove(config.TorControlAddress)
 
-	err = torConn.Authenticate("")
+	err = proxyConn.Authenticate("")
 	if err != nil {
 		panic(err)
 	}
@@ -142,6 +155,56 @@ func TestProxyListenerSession(t *testing.T) {
 		t.Errorf("accumulated control commands don't match", err)
 		t.Fail()
 	}
+
+	// test auth failure from non policy connection exec path
+	failProcInfo := procsnitch.Info{
+		UID:       1,
+		Pid:       1,
+		ParentPid: 1,
+		ExePath:   "/usr/bin/false",
+		CmdLine:   "123456789101112",
+	}
+	proxyListener.procInfo = NewMockProcInfo(&failProcInfo)
+
+	var proxyConn2 *bulb.Conn
+	proxyConn2, err = bulb.Dial("tcp", "127.0.0.1:4356")
+	if err != nil {
+		t.Errorf("Failed to connect to tor control port: %v", err)
+		t.Fail()
+	}
+	defer proxyConn2.Close()
+	proxyConn2.Debug(true)
+	defer os.Remove(config.TorControlAddress)
+
+	err = proxyConn2.Authenticate("")
+	if err == nil {
+		t.Error("did not receive auth error")
+		t.Fail()
+	}
+	if fmt.Sprintf("%s", err) != "510 Unrecognized command: Tor Control proxy connection denied." {
+		t.Errorf("err string not match")
+		t.Fail()
+	}
+
+	var proxyAuthConn *bulb.Conn
+	proxyAuthConn, err = bulb.Dial("tcp", "127.0.0.1:6651")
+	if err != nil {
+		t.Errorf("Failed to connect to tor control port: %v", err)
+		t.Fail()
+	}
+	defer proxyAuthConn.Close()
+	proxyAuthConn.Debug(true)
+	err = proxyAuthConn.Authenticate("")
+	if err == nil {
+		t.Errorf("expected an authentication error")
+		t.Fail()
+	}
+	if fmt.Sprintf("%s", err) != "510 Unrecognized command: Tor Control proxy connection denied." {
+		t.Errorf("err string not match")
+		t.Fail()
+	}
+
+	proxyListener.StopListeners()
 }
 
 func echoConnection(conn net.Conn) error {
