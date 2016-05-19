@@ -296,10 +296,11 @@ func (s *ProxySession) getProcInfo() *procsnitch.Info {
 
 		fields = strings.Split(s.appConn.LocalAddr().String(), ":")
 		dstIP := net.ParseIP(fields[0])
-		if dstIP == nil {
-			s.appConn.Close()
-			panic(fmt.Sprintf("impossible error: net.ParseIP fail for: %s\n", fields[1]))
-		}
+		// XXX not necessary; should never fail to parse!
+		//if dstIP == nil {
+		//	s.appConn.Close()
+		//	panic(fmt.Sprintf("impossible error: net.ParseIP fail for: %s\n", fields[1]))
+		//}
 		srcP, _ := strconv.ParseUint(dstPortStr, 10, 16)
 		dstP, _ := strconv.ParseUint(fields[1], 10, 16)
 		procInfo = s.procInfo.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
@@ -311,12 +312,11 @@ func (s *ProxySession) getProcInfo() *procsnitch.Info {
 
 // getFilterPolicy returns a *ServerClientFilterConfig
 // (session policy) if one can be found, otherwise nil is returned.
-// Note that the connection is closed upon fatal error,
-// when we fail to lookup the proc info, we return nil and an error.
+// Note that the calling party should decide whether or not to close
+// the connection.
 func (s *ProxySession) getFilterPolicy() *SievePolicyJSONConfig {
 	procInfo := s.getProcInfo()
 	if procInfo == nil {
-		s.appConn.Close()
 		log.Printf("Could not find process information for connection %s:%s", s.appConn.LocalAddr().Network(), s.appConn.LocalAddr().String())
 		return nil
 	}
@@ -377,7 +377,7 @@ func (s *ProxySession) sessionWorker() {
 		procInfo := s.getProcInfo()
 		fmt.Println("getProcInfo returned", procInfo)
 		if procInfo == nil {
-			panic("proc query fail")
+			panic("wtf! impossible proc query failure.")
 		}
 		if procInfo.ExePath != "/usr/sbin/oz-daemon" {
 			// denied!
