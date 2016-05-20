@@ -50,40 +50,40 @@ func (l *MortalListener) Stop() {
 // Start the MortalListener
 func (l *MortalListener) Start() error {
 	var err error
-	defer func() {
-		log.Printf("stoping listener service %s:%s", l.network, l.address)
-		for i, conn := range l.conns {
-			if conn != nil {
-				log.Printf("Closing connection #%d", i)
-				conn.Close()
-			}
-		}
-	}()
-
 	l.ln, err = net.Listen(l.network, l.address)
 	if err != nil {
 		return err
 	}
-	defer l.ln.Close()
 
-	for {
-		log.Printf("Listening for connections on %s:%s", l.network, l.address)
-		conn, err := l.ln.Accept()
-
-		if err != nil {
-			log.Printf("MortalListener connection accept failure: %s\n", err)
-			select {
-			case <-l.quit:
-				return nil
-			default:
+	go func() {
+		defer l.ln.Close()
+		defer func() {
+			log.Printf("stoping listener service %s:%s", l.network, l.address)
+			for i, conn := range l.conns {
+				if conn != nil {
+					log.Printf("Closing connection #%d", i)
+					conn.Close()
+				}
 			}
+		}()
 
-			continue
+		for {
+			log.Printf("Listening for connections on %s:%s", l.network, l.address)
+			conn, err := l.ln.Accept()
+
+			if err != nil {
+				log.Printf("MortalListener connection accept failure: %s\n", err)
+				select {
+				case <-l.quit:
+					return
+				default:
+				}
+				continue
+			}
+			l.conns = append(l.conns, conn)
+			go l.handleConnection(conn, len(l.conns)-1)
 		}
-
-		l.conns = append(l.conns, conn)
-		go l.handleConnection(conn, len(l.conns)-1)
-	}
+	}()
 	return nil
 }
 
@@ -186,7 +186,7 @@ func (p *ProxyListener) StartListeners() {
 	}
 	for _, location := range p.cfg.Listeners {
 		p.services = append(p.services, NewMortalListener(location.Net, location.Address, handleNewConnection))
-		go p.services[len(p.services)-1].Start()
+		p.services[len(p.services)-1].Start()
 	}
 }
 
@@ -227,7 +227,7 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 			return nil
 		}
 		p.authedServices = append(p.authedServices, NewMortalListener(location.Net, location.Address, handleNewConnection))
-		go p.authedServices[len(p.authedServices)-1].Start()
+		p.authedServices[len(p.authedServices)-1].Start()
 	}
 }
 

@@ -58,7 +58,7 @@ func NewAccumulatingListener(net, address string) *AccumulatingListener {
 
 func (a *AccumulatingListener) Start() {
 	a.mortalService = NewMortalListener(a.net, a.address, a.SessionWorker)
-	go a.mortalService.Start()
+	a.mortalService.Start()
 }
 
 func (a *AccumulatingListener) Stop() {
@@ -117,14 +117,14 @@ func TestGetNilFilterPolicy(t *testing.T) {
 	proxyAddress := "127.0.0.1:4492"
 
 	fakeTorService, proxyService := setupFakeProxyAndTorService(proxyNet, proxyAddress)
-	defer fakeTorService.Stop()
+	//defer fakeTorService.Stop()
 
 	proxyService.procInfo = NewMockProcInfo(nil)
 	proxyService.StartListeners()
-	defer proxyService.StopListeners()
+	//defer proxyService.StopListeners()
 
 	clientConn, err := bulb.Dial(proxyNet, proxyAddress)
-	defer clientConn.Close()
+	//defer clientConn.Close()
 	if err != nil {
 		panic(err)
 	}
@@ -135,6 +135,9 @@ func TestGetNilFilterPolicy(t *testing.T) {
 		t.Fail()
 	}
 
+	clientConn.Close()
+	proxyService.StopListeners()
+	fakeTorService.Stop()
 }
 
 func TestGetFilterPolicyFromExecPath(t *testing.T) {
@@ -151,6 +154,7 @@ func TestGetFilterPolicyFromExecPath(t *testing.T) {
 	}
 	proxyService.procInfo = NewMockProcInfo(&ricochetProcInfo)
 	proxyService.StartListeners()
+
 	clientConn, err := bulb.Dial(proxyNet, proxyAddress)
 	if err != nil {
 		panic(err)
@@ -162,8 +166,8 @@ func TestGetFilterPolicyFromExecPath(t *testing.T) {
 		t.Fail()
 	}
 	clientConn.Close()
-	fakeTorService.Stop()
 	proxyService.StopListeners()
+	fakeTorService.Stop()
 }
 
 func TestGetMissingFilterPolicy(t *testing.T) {
@@ -214,17 +218,13 @@ func TestProxyAuthListenerSession(t *testing.T) {
 	}
 	proxyService.procInfo = NewMockProcInfo(&ricochetProcInfo)
 	proxyService.StartListeners()
-	defer proxyService.StopListeners()
 
 	var clientConn *bulb.Conn
 	clientConn, err = bulb.Dial("tcp", "127.0.0.1:6651")
-	defer clientConn.Close()
-
 	if err != nil {
 		t.Errorf("Failed to connect to tor control port: %v", err)
 		t.Fail()
 	}
-	//defer clientConn.Close()
 	clientConn.Debug(true)
 	err = clientConn.Authenticate("")
 	if err == nil {
@@ -235,8 +235,12 @@ func TestProxyAuthListenerSession(t *testing.T) {
 		t.Errorf("err string not match")
 		t.Fail()
 	}
+
+	clientConn.Close()
+	proxyService.StopListeners()
 }
 
+/*
 func TestProxyListenerSession(t *testing.T) {
 	fmt.Println("- TestProxyListenerSession")
 	var err error
@@ -282,3 +286,4 @@ func TestProxyListenerSession(t *testing.T) {
 	}
 
 }
+*/
