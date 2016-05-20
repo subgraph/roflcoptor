@@ -1,6 +1,5 @@
 package main
 
-/*
 import (
 	"bufio"
 	"fmt"
@@ -19,11 +18,11 @@ func echoConnection(conn net.Conn) error {
 	return nil
 }
 
-func TestMortalListener(t *testing.T) {
-	fmt.Println("- TestMortalListener")
+func TestMortalService(t *testing.T) {
+	fmt.Println("- TestMortalService")
 	network := "tcp"
 	address := "127.0.0.1:5388"
-	l := NewMortalListener(network, address, echoConnection)
+	l := NewMortalService(network, address, echoConnection)
 	defer l.Stop()
 	go l.Start()
 
@@ -63,4 +62,3 @@ func TestMortalListener(t *testing.T) {
 	// the server.
 	time.Sleep(2 * time.Second)
 }
-*/

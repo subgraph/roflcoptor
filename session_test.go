@@ -45,7 +45,7 @@ func (r MockProcInfo) LookupUNIXSocketProcess(socketFile string) *procsnitch.Inf
 type AccumulatingListener struct {
 	net, address  string
 	buffer        bytes.Buffer
-	mortalService *MortalListener
+	mortalService *MortalService
 }
 
 func NewAccumulatingListener(net, address string) *AccumulatingListener {
@@ -57,7 +57,7 @@ func NewAccumulatingListener(net, address string) *AccumulatingListener {
 }
 
 func (a *AccumulatingListener) Start() {
-	a.mortalService = NewMortalListener(a.net, a.address, a.SessionWorker)
+	a.mortalService = NewMortalService(a.net, a.address, a.SessionWorker)
 	a.mortalService.Start()
 }
 
@@ -145,6 +145,8 @@ func TestGetFilterPolicyFromExecPath(t *testing.T) {
 	proxyNet := "tcp"
 	proxyAddress := "127.0.0.1:4491"
 	fakeTorService, proxyService := setupFakeProxyAndTorService(proxyNet, proxyAddress)
+	//defer fakeTorService.Stop()
+
 	ricochetProcInfo := procsnitch.Info{
 		UID:       1,
 		Pid:       1,
@@ -154,6 +156,7 @@ func TestGetFilterPolicyFromExecPath(t *testing.T) {
 	}
 	proxyService.procInfo = NewMockProcInfo(&ricochetProcInfo)
 	proxyService.StartListeners()
+	defer proxyService.StopListeners()
 
 	clientConn, err := bulb.Dial(proxyNet, proxyAddress)
 	if err != nil {
@@ -166,7 +169,7 @@ func TestGetFilterPolicyFromExecPath(t *testing.T) {
 		t.Fail()
 	}
 	clientConn.Close()
-	proxyService.StopListeners()
+	//proxyService.StopListeners()
 	fakeTorService.Stop()
 }
 
@@ -207,7 +210,6 @@ func TestProxyAuthListenerSession(t *testing.T) {
 	proxyAddress := "127.0.0.1:4491"
 
 	fakeTorService, proxyService := setupFakeProxyAndTorService(proxyNet, proxyAddress)
-	defer fakeTorService.Stop()
 
 	ricochetProcInfo := procsnitch.Info{
 		UID:       1,
@@ -238,9 +240,9 @@ func TestProxyAuthListenerSession(t *testing.T) {
 
 	clientConn.Close()
 	proxyService.StopListeners()
+	fakeTorService.Stop()
 }
 
-/*
 func TestProxyListenerSession(t *testing.T) {
 	fmt.Println("- TestProxyListenerSession")
 	var err error
@@ -286,4 +288,3 @@ func TestProxyListenerSession(t *testing.T) {
 	}
 
 }
-*/

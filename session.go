@@ -14,100 +14,6 @@ import (
 	"github.com/yawning/bulb"
 )
 
-// MortalListener can be killed at any time.
-type MortalListener struct {
-	network            string
-	address            string
-	connectionCallback func(net.Conn) error
-
-	conns []net.Conn
-	quit  chan bool
-	ln    net.Listener
-}
-
-// NewMortalListener creates a new MortalListener
-func NewMortalListener(network, address string, connectionCallback func(net.Conn) error) *MortalListener {
-	l := MortalListener{
-		network:            network,
-		address:            address,
-		connectionCallback: connectionCallback,
-
-		conns: make([]net.Conn, 0, 10),
-		quit:  make(chan bool),
-	}
-	return &l
-}
-
-// Stop will kill our listener and all it's connections
-func (l *MortalListener) Stop() {
-	log.Printf("stopping listener service %s:%s", l.network, l.address)
-	close(l.quit)
-	if l.ln != nil {
-		l.ln.Close()
-	}
-}
-
-// Start the MortalListener
-func (l *MortalListener) Start() error {
-	var err error
-	l.ln, err = net.Listen(l.network, l.address)
-	if err != nil {
-		return err
-	}
-
-	go func() {
-		defer l.ln.Close()
-		defer func() {
-			log.Printf("stoping listener service %s:%s", l.network, l.address)
-			for i, conn := range l.conns {
-				if conn != nil {
-					log.Printf("Closing connection #%d", i)
-					conn.Close()
-				}
-			}
-		}()
-
-		for {
-			log.Printf("Listening for connections on %s:%s", l.network, l.address)
-			conn, err := l.ln.Accept()
-
-			if err != nil {
-				log.Printf("MortalListener connection accept failure: %s\n", err)
-				select {
-				case <-l.quit:
-					return
-				default:
-				}
-				continue
-			}
-			l.conns = append(l.conns, conn)
-			go l.handleConnection(conn, len(l.conns)-1)
-		}
-	}()
-	return nil
-}
-
-func (l *MortalListener) handleConnection(conn net.Conn, id int) error {
-	defer func() {
-		log.Printf("Closing connection #%d", id)
-		conn.Close()
-		l.conns[id] = nil
-	}()
-
-	log.Printf("Starting connection #%d", id)
-
-	for {
-		// If l.connectionCallback returns, then it's either
-		// because the socket is closed (err == nil), or there's some type of
-		// real error.
-		if err := l.connectionCallback(conn); err != nil {
-			log.Println(err.Error())
-			return err
-		}
-		return nil
-	}
-}
-
 // ProcInfo represents an api that can be used to query process information about
 // the far side of a network connection
 type ProcInfo interface {
@@ -135,8 +41,8 @@ func (r RealProcInfo) LookupUNIXSocketProcess(socketFile string) *procsnitch.Inf
 type ProxyListener struct {
 	cfg            *RoflcoptorConfig
 	watch          bool
-	services       []*MortalListener
-	authedServices []*MortalListener
+	services       []*MortalService
+	authedServices []*MortalService
 	onionDenyAddrs []AddrString
 	errChan        chan error
 	procInfo       ProcInfo
@@ -185,13 +91,13 @@ func (p *ProxyListener) StartListeners() {
 		return nil
 	}
 	for _, location := range p.cfg.Listeners {
-		p.services = append(p.services, NewMortalListener(location.Net, location.Address, handleNewConnection))
+		p.services = append(p.services, NewMortalService(location.Net, location.Address, handleNewConnection))
 		p.services[len(p.services)-1].Start()
 	}
 }
 
 func (p *ProxyListener) StopListeners() {
-	stopServices := func(services []*MortalListener) {
+	stopServices := func(services []*MortalService) {
 		for _, service := range services {
 			service.Stop()
 		}
@@ -217,6 +123,7 @@ func (p *ProxyListener) compileOnionAddrBlacklist() {
 // InitAuthenticatedListeners runs each auth listener
 // in it's own goroutine.
 func (p *ProxyListener) initAuthenticatedListeners() {
+	fmt.Println("initAuthenticatedListeners")
 	locations := p.policyList.getAuthenticatedPolicyAddresses()
 	for location, policy := range locations {
 		handleNewConnection := func(conn net.Conn) error {
@@ -226,7 +133,7 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 			s.sessionWorker()
 			return nil
 		}
-		p.authedServices = append(p.authedServices, NewMortalListener(location.Net, location.Address, handleNewConnection))
+		p.authedServices = append(p.authedServices, NewMortalService(location.Net, location.Address, handleNewConnection))
 		p.authedServices[len(p.authedServices)-1].Start()
 	}
 }
