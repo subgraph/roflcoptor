@@ -117,14 +117,12 @@ func TestGetNilFilterPolicy(t *testing.T) {
 	proxyAddress := "127.0.0.1:4492"
 
 	fakeTorService, proxyService := setupFakeProxyAndTorService(proxyNet, proxyAddress)
-	//defer fakeTorService.Stop()
+	defer fakeTorService.Stop()
 
 	proxyService.procInfo = NewMockProcInfo(nil)
 	proxyService.StartListeners()
-	//defer proxyService.StopListeners()
 
 	clientConn, err := bulb.Dial(proxyNet, proxyAddress)
-	//defer clientConn.Close()
 	if err != nil {
 		panic(err)
 	}
@@ -137,7 +135,6 @@ func TestGetNilFilterPolicy(t *testing.T) {
 
 	clientConn.Close()
 	proxyService.StopListeners()
-	fakeTorService.Stop()
 }
 
 func TestGetFilterPolicyFromExecPath(t *testing.T) {
@@ -145,7 +142,7 @@ func TestGetFilterPolicyFromExecPath(t *testing.T) {
 	proxyNet := "tcp"
 	proxyAddress := "127.0.0.1:4491"
 	fakeTorService, proxyService := setupFakeProxyAndTorService(proxyNet, proxyAddress)
-	//defer fakeTorService.Stop()
+	defer fakeTorService.Stop()
 
 	ricochetProcInfo := procsnitch.Info{
 		UID:       1,
@@ -156,7 +153,6 @@ func TestGetFilterPolicyFromExecPath(t *testing.T) {
 	}
 	proxyService.procInfo = NewMockProcInfo(&ricochetProcInfo)
 	proxyService.StartListeners()
-	defer proxyService.StopListeners()
 
 	clientConn, err := bulb.Dial(proxyNet, proxyAddress)
 	if err != nil {
@@ -168,9 +164,9 @@ func TestGetFilterPolicyFromExecPath(t *testing.T) {
 		t.Errorf("client connect fail: %s\n", err)
 		t.Fail()
 	}
+
 	clientConn.Close()
-	//proxyService.StopListeners()
-	fakeTorService.Stop()
+	proxyService.StopListeners()
 }
 
 func TestGetMissingFilterPolicy(t *testing.T) {

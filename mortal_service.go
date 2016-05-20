@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -13,9 +14,10 @@ type MortalService struct {
 	address            string
 	connectionCallback func(net.Conn) error
 
-	conns    []net.Conn
-	quit     chan bool
-	listener net.Listener
+	conns     []net.Conn
+	quit      chan bool
+	listener  net.Listener
+	waitGroup *sync.WaitGroup
 }
 
 // NewMortalService creates a new MortalService
@@ -25,8 +27,9 @@ func NewMortalService(network, address string, connectionCallback func(net.Conn)
 		address:            address,
 		connectionCallback: connectionCallback,
 
-		conns: make([]net.Conn, 0, 10),
-		quit:  make(chan bool),
+		conns:     make([]net.Conn, 0, 10),
+		quit:      make(chan bool),
+		waitGroup: &sync.WaitGroup{},
 	}
 	return &l
 }
@@ -38,9 +41,11 @@ func (l *MortalService) Stop() {
 	if l.listener != nil {
 		l.listener.Close()
 	}
+	l.waitGroup.Wait()
 }
 
 func (l *MortalService) AcceptLoop() {
+	defer l.waitGroup.Done()
 	defer func() {
 		log.Printf("stoping listener service %s:%s", l.network, l.address)
 		for i, conn := range l.conns {
@@ -53,18 +58,21 @@ func (l *MortalService) AcceptLoop() {
 	defer l.listener.Close()
 
 	for {
-		log.Printf("Listening for connections on %s:%s", l.network, l.address)
 		conn, err := l.listener.Accept()
-
-		if err != nil {
-			log.Printf("MortalService connection accept failure: %s\n", err)
-			select {
-			case <-l.quit:
-				return
-			default:
+		if nil != err {
+			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+				continue
+			} else {
+				log.Printf("MortalService connection accept failure: %s\n", err)
+				select {
+				case <-l.quit:
+					return
+				default:
+				}
+				continue
 			}
-			continue
 		}
+
 		l.conns = append(l.conns, conn)
 		go l.handleConnection(conn, len(l.conns)-1)
 	}
@@ -108,6 +116,7 @@ func (l *MortalService) Start() error {
 	if err != nil {
 		return err
 	}
+	l.waitGroup.Add(1)
 	go l.AcceptLoop()
 	return nil
 }
@@ -122,9 +131,6 @@ func (l *MortalService) handleConnection(conn net.Conn, id int) error {
 	log.Printf("Starting connection #%d", id)
 
 	for {
-		// If l.connectionCallback returns, then it's either
-		// because the socket is closed (err == nil), or there's some type of
-		// real error.
 		if err := l.connectionCallback(conn); err != nil {
 			log.Println(err.Error())
 			return err
