@@ -123,7 +123,6 @@ func (p *ProxyListener) compileOnionAddrBlacklist() {
 // InitAuthenticatedListeners runs each auth listener
 // in it's own goroutine.
 func (p *ProxyListener) initAuthenticatedListeners() {
-	fmt.Println("initAuthenticatedListeners")
 	locations := p.policyList.getAuthenticatedPolicyAddresses()
 	for location, policy := range locations {
 		handleNewConnection := func(conn net.Conn) error {
@@ -243,18 +242,15 @@ func (s *ProxySession) getFilterPolicy() *SievePolicyJSONConfig {
 // authentication schemes are used.
 func (s *ProxySession) initTorControl() error {
 	var err error
-
 	// Connect to the real control port.
 	if s.torConn, err = bulb.Dial(s.torControlNet, s.torControlAddress); err != nil {
 		return fmt.Errorf("ERR/tor: Failed to connect to tor control port: %v", err)
 	}
-
 	// Issue a PROTOCOLINFO, so we can send a realistic response.
 	if s.protoInfo, err = s.torConn.ProtocolInfo(); err != nil {
 		s.torConn.Close()
 		return fmt.Errorf("ERR/tor: Failed to issue PROTOCOLINFO: %v", err)
 	}
-
 	// Authenticate with the real tor control port.
 	// XXX: Pull password out of `b.s.cfg`.
 	if err = s.torConn.Authenticate(""); err != nil {
@@ -282,7 +278,6 @@ func (s *ProxySession) sessionWorker() {
 		}
 	} else {
 		procInfo := s.getProcInfo()
-		fmt.Println("getProcInfo returned", procInfo)
 		if procInfo == nil {
 			panic("wtf! impossible proc query failure.")
 		}
@@ -424,7 +419,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 }
 
 // ADD_ONION filtration -
-var addOnionRegexp = regexp.MustCompile("PORT=([^ ]+)")
+var addOnionRegexp = regexp.MustCompile("=([^ ]+)")
 
 // shouldAllowOnion implements our deny policy for ADD_ONION.
 // If the application filter policy specified an allow rule
@@ -441,10 +436,7 @@ var addOnionRegexp = regexp.MustCompile("PORT=([^ ]+)")
 func (s *ProxySession) shouldAllowOnion(command string) bool {
 	virtport := ""
 	target := ""
-
-	upperCommand := strings.ToUpper(command)
-	ports := addOnionRegexp.FindString(upperCommand)
-
+	ports := addOnionRegexp.FindString(command)
 	fields := strings.Split(ports, ",")
 
 	if len(fields) == 2 {
@@ -452,16 +444,13 @@ func (s *ProxySession) shouldAllowOnion(command string) bool {
 		target = fields[1]
 		fields = strings.Split(target, ":")
 		if len(fields) == 2 {
-			// target is of form host:port if TCP
-			// otherwise unix:file is specified to utilize
-			// a unix domain socket
 			if strings.ToUpper(fields[0]) == "UNIX" {
 				return !s.isAddrDenied("unix", fields[1])
 			}
 			return !s.isAddrDenied("tcp", target)
 		} else if len(fields) == 1 {
 			// target only specifies a port
-			return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%d", target))
+			return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", target))
 		} else {
 			// syntax error
 			return false
@@ -469,7 +458,7 @@ func (s *ProxySession) shouldAllowOnion(command string) bool {
 	} else if len(fields) == 1 {
 		// target not specified, default to port only specified as virtport
 		virtport = fields[0]
-		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%d", virtport))
+		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", virtport))
 	} else {
 		// syntax error
 		return false
@@ -477,6 +466,7 @@ func (s *ProxySession) shouldAllowOnion(command string) bool {
 }
 
 func (s *ProxySession) isAddrDenied(net, addr string) bool {
+	fmt.Printf("isAddrDenied called %s %s\n", net, addr)
 	for i := 0; i < len(s.addOnionDenyList); i++ {
 		if net == s.addOnionDenyList[i].Net && addr == s.addOnionDenyList[i].Address {
 			return true

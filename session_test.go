@@ -32,26 +32,23 @@ func (r MockProcInfo) LookupTCPSocketProcess(srcPort uint16, dstAddr net.IP, dst
 }
 
 func (r MockProcInfo) LookupUNIXSocketProcess(socketFile string) *procsnitch.Info {
-	info := procsnitch.Info{
-		UID:       1,
-		Pid:       1,
-		ParentPid: 1,
-		ExePath:   "/usr/local/bin/ricochet",
-		CmdLine:   "testing_cmd_line",
-	}
-	return &info
+	return r.procInfo
 }
 
 type AccumulatingListener struct {
-	net, address  string
-	buffer        bytes.Buffer
-	mortalService *MortalService
+	net, address    string
+	buffer          bytes.Buffer
+	mortalService   *MortalService
+	hasProtocolInfo bool
+	hasAuthenticate bool
 }
 
 func NewAccumulatingListener(net, address string) *AccumulatingListener {
 	l := AccumulatingListener{
-		net:     net,
-		address: address,
+		net:             net,
+		address:         address,
+		hasProtocolInfo: true,
+		hasAuthenticate: true,
 	}
 	return &l
 }
@@ -67,20 +64,31 @@ func (a *AccumulatingListener) Stop() {
 }
 
 func (a *AccumulatingListener) SessionWorker(conn net.Conn) error {
+	connReader := bufio.NewReader(conn)
 	for {
-		connReader := bufio.NewReader(conn)
+
 		line, err := connReader.ReadBytes('\n')
 		if err != nil {
-			//panic(err)
+			fmt.Println("AccumulatingListener read error:", err)
 		}
 		lineStr := strings.TrimSpace(string(line))
 		a.buffer.WriteString(lineStr + "\n")
 
 		if string(lineStr) == "PROTOCOLINFO" {
-			conn.Write([]byte(`250-PROTOCOLINFO 1
+			if a.hasProtocolInfo {
+				conn.Write([]byte(`250-PROTOCOLINFO 1
 250-AUTH METHODS=NULL
 250-VERSION Tor="0.2.7.6"
 250 OK` + "\n"))
+			} else {
+				conn.Write([]byte("510 PROTOCOLINFO denied.\r\n"))
+			}
+		} else if string(lineStr) == "AUTHENTICATE" {
+			if a.hasAuthenticate {
+				conn.Write([]byte("250 OK\r\n"))
+			} else {
+				conn.Write([]byte("510 PROTOCOLINFO denied.\r\n"))
+			}
 		} else {
 			conn.Write([]byte("250 OK\r\n"))
 		}
@@ -283,4 +291,173 @@ func TestProxyListenerSession(t *testing.T) {
 		t.Fail()
 	}
 
+}
+
+func TestUnixSocketListener(t *testing.T) {
+	var err error
+	proxyNet := "unix"
+	proxyAddress := "testing123_socket"
+
+	fakeTorService, proxyService := setupFakeProxyAndTorService(proxyNet, proxyAddress)
+	ricochetProcInfo := procsnitch.Info{
+		UID:       1,
+		Pid:       1,
+		ParentPid: 1,
+		ExePath:   "/usr/local/bin/ricochet",
+		CmdLine:   "testing_cmd_line",
+	}
+	proxyService.procInfo = NewMockProcInfo(&ricochetProcInfo)
+	proxyService.StartListeners()
+
+	var clientConn *bulb.Conn
+	clientConn, err = bulb.Dial(proxyNet, proxyAddress)
+	if err != nil {
+		t.Errorf("Failed to connect to tor control port: %v", err)
+		t.Fail()
+	}
+	clientConn.Debug(true)
+	err = clientConn.Authenticate("")
+	if err == nil {
+		t.Errorf("expected an authentication error")
+		t.Fail()
+	}
+	if fmt.Sprintf("%s", err) != "510 Unrecognized command: Tor Control proxy connection denied." {
+		t.Errorf("err string not match")
+		t.Fail()
+	}
+
+	clientConn.Close()
+	proxyService.StopListeners()
+	fakeTorService.Stop()
+}
+
+func TestBadAddressTorControlPort(t *testing.T) {
+	var conn net.Conn
+	torControlNet := "unix"
+	torControlAddress := "123"
+	denyOnions := []AddrString{}
+	procInfo := procsnitch.Info{
+		UID:       1,
+		Pid:       1,
+		ParentPid: 1,
+		ExePath:   "/usr/local/bin/ricochet",
+		CmdLine:   "testing_cmd_line",
+	}
+	mockProcInfo := NewMockProcInfo(&procInfo)
+	policy := &SievePolicyJSONConfig{}
+	session := NewAuthProxySession(conn, torControlNet, torControlAddress, denyOnions, false, mockProcInfo, policy)
+
+	err := session.initTorControl()
+	if err == nil {
+		t.Errorf("expected failure")
+		t.Fail()
+	}
+}
+
+func TestNoProtocolInfoTorControlPort(t *testing.T) {
+	listeners := []AddrString{
+		{
+			Net:     "unix",
+			Address: "proxy_socket",
+		},
+	}
+	config := RoflcoptorConfig{
+		LogFile:           "-",
+		FiltersPath:       "./filters",
+		Listeners:         listeners,
+		TorControlNet:     "unix",
+		TorControlAddress: "test_tor_socket",
+	}
+	fakeTorService := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
+	fakeTorService.hasProtocolInfo = false
+	fakeTorService.Start()
+	defer fakeTorService.Stop()
+
+	var conn net.Conn
+	denyOnions := []AddrString{}
+	procInfo := procsnitch.Info{
+		UID:       1,
+		Pid:       1,
+		ParentPid: 1,
+		ExePath:   "/usr/local/bin/ricochet",
+		CmdLine:   "testing_cmd_line",
+	}
+	mockProcInfo := NewMockProcInfo(&procInfo)
+	policy := &SievePolicyJSONConfig{}
+	session := NewAuthProxySession(conn, config.TorControlNet, config.TorControlAddress, denyOnions, false, mockProcInfo, policy)
+	err := session.initTorControl()
+	if err == nil {
+		t.Errorf("expected failure")
+		t.Fail()
+	}
+	session.torConn.Close()
+}
+
+func TestNoAuthenticateTorControlPort(t *testing.T) {
+	listeners := []AddrString{
+		{
+			Net:     "unix",
+			Address: "proxy_socket",
+		},
+	}
+	config := RoflcoptorConfig{
+		LogFile:           "-",
+		FiltersPath:       "./filters",
+		Listeners:         listeners,
+		TorControlNet:     "unix",
+		TorControlAddress: "test_tor_socket",
+	}
+	fakeTorService := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
+	fakeTorService.hasAuthenticate = false
+	fakeTorService.Start()
+	defer fakeTorService.Stop()
+
+	var conn net.Conn
+	denyOnions := []AddrString{}
+	procInfo := procsnitch.Info{
+		UID:       1,
+		Pid:       1,
+		ParentPid: 1,
+		ExePath:   "/usr/local/bin/ricochet",
+		CmdLine:   "testing_cmd_line",
+	}
+	mockProcInfo := NewMockProcInfo(&procInfo)
+	policy := &SievePolicyJSONConfig{}
+	session := NewAuthProxySession(conn, config.TorControlNet, config.TorControlAddress, denyOnions, false, mockProcInfo, policy)
+	err := session.initTorControl()
+	if err == nil {
+		t.Errorf("expected failure")
+		t.Fail()
+	}
+	session.torConn.Close()
+}
+
+func TestShouldAllowOnion(t *testing.T) {
+	var conn net.Conn
+	denyOnions := []AddrString{
+		{"unix", "/var/run/tor/control"},
+		{"tcp", "127.0.0.1:9051"},
+	}
+	procInfo := procsnitch.Info{}
+	mockProcInfo := NewMockProcInfo(&procInfo)
+	policy := &SievePolicyJSONConfig{}
+	session := NewAuthProxySession(conn, "meownew", "meowaddr", denyOnions, false, mockProcInfo, policy)
+
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{"meow", true},
+		{"", true},
+		{"ADD_ONION NEW:BEST Port=80,127.0.0.1:9051", false},
+		{"ADD_ONION NEW:BEST Port=80,unix:/var/run/tor/control", false},
+	}
+
+	for _, test := range tests {
+		isAllowed := session.shouldAllowOnion(test.in)
+		if isAllowed != test.want {
+			t.Errorf("test fail; command: %s wanted: %v but got %v", test.in, test.want, isAllowed)
+			t.Fail()
+		}
+	}
 }
