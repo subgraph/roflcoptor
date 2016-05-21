@@ -343,19 +343,16 @@ func (s *ProxySession) proxyFilterTorToApp() {
 		lineStr := strings.TrimSpace(string(line))
 		log.Printf("A<-T: [%s]\n", lineStr)
 		if s.watch {
-			if _, err = s.writeAppConn([]byte(lineStr + "\r\n")); err != nil {
-				s.errChan <- err
-				break
-			}
+			_, err = s.writeAppConn([]byte(lineStr + "\r\n"))
 		} else {
 			outputMessage := s.serverSieve.Filter(lineStr)
 			if outputMessage != "" {
-				_, err := s.writeAppConn([]byte(outputMessage + "\r\n"))
-				if err != nil {
-					s.errChan <- err
-					break
-				}
+				_, err = s.writeAppConn([]byte(outputMessage + "\r\n"))
 			}
+		}
+		if err != nil {
+			s.errChan <- err
+			break
 		}
 	}
 }
@@ -383,16 +380,12 @@ func (s *ProxySession) proxyFilterAppToTor() {
 
 		if s.watch {
 			log.Printf("A->T: [%s]\n", lineStr)
-			_, err := s.torConn.Write([]byte(lineStr + "\r\n"))
-			if err != nil {
-				s.errChan <- err
-			}
+			_, err = s.torConn.Write([]byte(lineStr + "\r\n"))
 		} else {
 			outputMessage := s.clientSieve.Filter(lineStr)
 			if outputMessage == "" {
 				_, err = s.writeAppConn([]byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
 			} else {
-
 				// handle the ADD_ONION special case
 				splitCmd := strings.Split(outputMessage, " ")
 				cmd := strings.ToUpper(splitCmd[0])
@@ -402,7 +395,9 @@ func (s *ProxySession) proxyFilterAppToTor() {
 						_, err = s.writeAppConn([]byte("510 Tor Control proxy ADD_ONION denied.\r\n"))
 						log.Printf("Denied A->T: [%s]\n", lineStr)
 						log.Print("Attempt to use ADD_ONION with a control port as target.")
-
+						if err != nil {
+							s.errChan <- err
+						}
 						continue
 					}
 				}

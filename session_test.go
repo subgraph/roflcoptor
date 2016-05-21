@@ -282,6 +282,81 @@ func TestProxyListenerSession(t *testing.T) {
 
 	err = clientConn.Authenticate("")
 	if err != nil {
+		t.Errorf("tor control port proxy auth fail: %v", err)
+		t.Fail()
+	}
+
+	_, err = clientConn.Write([]byte("ADD_ONION NEW:BEST Port=9051,80\r\n"))
+	if err != nil {
+		t.Errorf("ADD_ONION fail: %v", err)
+		t.Fail()
+	}
+
+	_, err = clientConn.Write([]byte("ADD_ONION NEW:BEST Port=4491\r\n"))
+	if err == nil {
+		t.Error("ADD_ONION should have failed")
+		t.Fail()
+	}
+
+	fmt.Printf("acc -%s-\n", fakeTorService.buffer.String())
+	if fakeTorService.buffer.String() != "PROTOCOLINFO\nAUTHENTICATE\nPROTOCOLINFO\nAUTHENTICATE\n" {
+		t.Errorf("accumulated control commands don't match", err)
+		t.Fail()
+	}
+
+}
+
+func TestProxyListenerWatchModeSession(t *testing.T) {
+	var err error
+	proxyNet := "tcp"
+	proxyAddress := "127.0.0.1:4491"
+
+	listeners := []AddrString{
+		{
+			Net:     proxyNet,
+			Address: proxyAddress,
+		},
+	}
+	config := RoflcoptorConfig{
+		LogFile:           "-",
+		FiltersPath:       "./filters",
+		Listeners:         listeners,
+		TorControlNet:     "unix",
+		TorControlAddress: "test_tor_socket",
+	}
+	fakeTorService := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
+	fakeTorService.Start()
+
+	watch := true
+	proxyService := NewProxyListener(&config, watch)
+	defer fakeTorService.Stop()
+
+	ricochetProcInfo := procsnitch.Info{
+		UID:       1,
+		Pid:       1,
+		ParentPid: 1,
+		ExePath:   "/usr/local/bin/ricochet",
+		CmdLine:   "testing_cmd_line",
+	}
+	proxyService.procInfo = NewMockProcInfo(&ricochetProcInfo)
+	proxyService.StartListeners()
+	defer proxyService.StopListeners()
+
+	// test legit connection from ricochet
+	var clientConn *bulb.Conn
+	clientConn, err = bulb.Dial(proxyNet, proxyAddress)
+	defer clientConn.Close()
+
+	if err != nil {
+		t.Errorf("Failed to connect to tor control port: %v", err)
+		t.Fail()
+	}
+
+	clientConn.Debug(true)
+	//defer os.Remove(config.TorControlAddress)
+
+	err = clientConn.Authenticate("")
+	if err != nil {
 		panic(err)
 	}
 
