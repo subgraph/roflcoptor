@@ -384,7 +384,8 @@ func (s *ProxySession) proxyFilterAppToTor() {
 		} else {
 			outputMessage := s.clientSieve.Filter(lineStr)
 			if outputMessage == "" {
-				_, err = s.writeAppConn([]byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
+				_, err = s.writeAppConn([]byte("250 Tor Control command proxy denied: filtration policy.\r\n"))
+				continue
 			} else {
 				// handle the ADD_ONION special case
 				splitCmd := strings.Split(outputMessage, " ")

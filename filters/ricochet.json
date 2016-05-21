@@ -4,7 +4,7 @@
                         "GETCONF DisableNetwork",
                         "SETEVENTS STATUS_CLIENT",
                         "GETINFO status/circuit-established status/bootstrap-phase net/listeners/socks"],
-    "client-allowed-prefixes" : ["ADD_ONION", "DEL_ONION"],
+    "client-allowed-prefixes" : ["ADD_ONION", "DEL_ONION", "AUTHENTICATE"],
     "client-replacements" : {},
     "client-replacement-prefixes" : {},
     "server-allowed" : ["250-PROTOCOLINFO 1", "250 OK"],

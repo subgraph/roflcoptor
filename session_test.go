@@ -278,6 +278,8 @@ func TestProxyListenerSession(t *testing.T) {
 	}
 
 	clientConn.Debug(true)
+	clientConn.StartAsyncReader()
+
 	//defer os.Remove(config.TorControlAddress)
 
 	err = clientConn.Authenticate("")
@@ -286,24 +288,23 @@ func TestProxyListenerSession(t *testing.T) {
 		t.Fail()
 	}
 
-	_, err = clientConn.Write([]byte("ADD_ONION NEW:BEST Port=9051,80\r\n"))
+	_, err = clientConn.Request("ADD_ONION NEW:BEST Port=4491,80\r\n")
 	if err != nil {
 		t.Errorf("ADD_ONION fail: %v", err)
 		t.Fail()
 	}
 
-	_, err = clientConn.Write([]byte("ADD_ONION NEW:BEST Port=4491\r\n"))
-	if err == nil {
+	_, err = clientConn.Request("ADD_ONION NEW:BEST Port=4491\r\n")
+	if err != nil {
 		t.Error("ADD_ONION should have failed")
 		t.Fail()
 	}
 
 	fmt.Printf("acc -%s-\n", fakeTorService.buffer.String())
-	if fakeTorService.buffer.String() != "PROTOCOLINFO\nAUTHENTICATE\nPROTOCOLINFO\nAUTHENTICATE\n" {
+	if fakeTorService.buffer.String() != "PROTOCOLINFO\nAUTHENTICATE\nPROTOCOLINFO\nAUTHENTICATE\nADD_ONION NEW:BEST Port=4491,80\n" {
 		t.Errorf("accumulated control commands don't match", err)
 		t.Fail()
 	}
-
 }
 
 func TestProxyListenerWatchModeSession(t *testing.T) {
