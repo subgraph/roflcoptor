@@ -434,13 +434,11 @@ var addOnionRegexp = regexp.MustCompile("=([^ ]+)")
 // here virtport is different than target port :
 // ADD_ONION NEW:BEST Port=80,127.0.0.1:2345
 func (s *ProxySession) shouldAllowOnion(command string) bool {
-	virtport := ""
 	target := ""
 	ports := addOnionRegexp.FindString(command)
 	fields := strings.Split(ports, ",")
 
 	if len(fields) == 2 {
-		virtport = fields[0]
 		target = fields[1]
 		fields = strings.Split(target, ":")
 		if len(fields) == 2 {
@@ -457,8 +455,10 @@ func (s *ProxySession) shouldAllowOnion(command string) bool {
 		}
 	} else if len(fields) == 1 {
 		// target not specified, default to port only specified as virtport
-		virtport = fields[0]
-		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", virtport))
+		if len(ports) > 0 {
+			ports = ports[1:len(ports)]
+		}
+		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", ports))
 	} else {
 		// syntax error
 		return false
@@ -466,7 +466,6 @@ func (s *ProxySession) shouldAllowOnion(command string) bool {
 }
 
 func (s *ProxySession) isAddrDenied(net, addr string) bool {
-	fmt.Printf("isAddrDenied called %s %s\n", net, addr)
 	for i := 0; i < len(s.addOnionDenyList); i++ {
 		if net == s.addOnionDenyList[i].Net && addr == s.addOnionDenyList[i].Address {
 			return true

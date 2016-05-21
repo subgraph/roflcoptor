@@ -451,6 +451,8 @@ func TestShouldAllowOnion(t *testing.T) {
 		{"", true},
 		{"ADD_ONION NEW:BEST Port=80,127.0.0.1:9051", false},
 		{"ADD_ONION NEW:BEST Port=80,unix:/var/run/tor/control", false},
+		{"ADD_ONION NEW:BEST Port=1234", true},
+		{"ADD_ONION NEW:BEST Port=9051", false},
 	}
 
 	for _, test := range tests {
