@@ -446,22 +446,16 @@ func (s *ProxySession) shouldAllowOnion(command string) bool {
 				return !s.isAddrDenied("unix", fields[1])
 			}
 			return !s.isAddrDenied("tcp", target)
-		} else if len(fields) == 1 {
+		} else {
 			// target only specifies a port
 			return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", target))
-		} else {
-			// syntax error
-			return false
 		}
-	} else if len(fields) == 1 {
+	} else {
 		// target not specified, default to port only specified as virtport
 		if len(ports) > 0 {
 			ports = ports[1:len(ports)]
 		}
 		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", ports))
-	} else {
-		// syntax error
-		return false
 	}
 }
 
