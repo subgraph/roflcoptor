@@ -69,7 +69,7 @@ func (a *AccumulatingListener) SessionWorker(conn net.Conn) error {
 
 		line, err := connReader.ReadBytes('\n')
 		if err != nil {
-			fmt.Println("AccumulatingListener read error:", err)
+			//fmt.Println("AccumulatingListener read error:", err)
 		}
 		lineStr := strings.TrimSpace(string(line))
 		a.buffer.WriteString(lineStr + "\n")
