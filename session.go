@@ -211,7 +211,7 @@ func (s *ProxySession) getProcInfo() *procsnitch.Info {
 		dstP, _ := strconv.ParseUint(fields[1], 10, 16)
 		procInfo = s.procInfo.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
 	} else if s.appConn.LocalAddr().Network() == "unix" {
-		procInfo = procsnitch.LookupUNIXSocketProcess(s.appConn.LocalAddr().String())
+		procInfo = s.procInfo.LookupUNIXSocketProcess(s.appConn.LocalAddr().String())
 	}
 	return procInfo
 }
