@@ -30,6 +30,7 @@ func (r RealProcInfo) LookupTCPSocketProcess(srcPort uint16, dstAddr net.IP, dst
 	return procsnitch.LookupTCPSocketProcess(srcPort, dstAddr, dstPort)
 }
 
+// LookupUNIXSocketProcess returns the process information for a given UNIX socket connection.
 func (r RealProcInfo) LookupUNIXSocketProcess(socketFile string) *procsnitch.Info {
 	return procsnitch.LookupUNIXSocketProcess(socketFile)
 }
@@ -96,6 +97,7 @@ func (p *ProxyListener) StartListeners() {
 	}
 }
 
+// StopListeners stops all the listeners
 func (p *ProxyListener) StopListeners() {
 	stopServices := func(services []*MortalService) {
 		for _, service := range services {
@@ -442,17 +444,15 @@ func (s *ProxySession) shouldAllowOnion(command string) bool {
 				return !s.isAddrDenied("unix", fields[1])
 			}
 			return !s.isAddrDenied("tcp", target)
-		} else {
-			// target only specifies a port
-			return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", target))
 		}
-	} else {
-		// target not specified, default to port only specified as virtport
-		if len(ports) > 0 {
-			ports = ports[1:len(ports)]
-		}
-		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", ports))
+		// target only specifies a port
+		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", target))
 	}
+	// target not specified, default to port only specified as virtport
+	if len(ports) > 0 {
+		ports = ports[1:len(ports)]
+	}
+	return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", ports))
 }
 
 func (s *ProxySession) isAddrDenied(net, addr string) bool {

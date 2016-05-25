@@ -119,15 +119,18 @@ func (s *Sieve) isCommandAllowed(message string) bool {
 
 var commentRegexp = regexp.MustCompile("^[ \t]*#")
 
+// PolicyList represents a list of policies
 type PolicyList struct {
 	loadedFilters []*SievePolicyJSONConfig
 }
 
+// NewPolicyList creates a new PolicyList
 func NewPolicyList() PolicyList {
 	policyList := PolicyList{}
 	return policyList
 }
 
+// LoadFilters loads filter files
 func (p *PolicyList) LoadFilters(directoryPath string) error {
 	fs, err := ioutil.ReadDir(directoryPath)
 	if err != nil {
@@ -152,6 +155,7 @@ func (p *PolicyList) LoadFilters(directoryPath string) error {
 	return nil
 }
 
+// LoadFilterFile loads the specified filter file
 func (p *PolicyList) LoadFilterFile(filePath string) (*SievePolicyJSONConfig, error) {
 	//if err := checkConfigPermissions(fpath); err != nil {
 	//	return nil, err

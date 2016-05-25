@@ -44,7 +44,7 @@ func (l *MortalService) Stop() {
 	l.waitGroup.Wait()
 }
 
-func (l *MortalService) AcceptLoop() {
+func (l *MortalService) acceptLoop() {
 	defer l.waitGroup.Done()
 	defer func() {
 		log.Printf("stoping listener service %s:%s", l.network, l.address)
@@ -117,7 +117,7 @@ func (l *MortalService) Start() error {
 		return err
 	}
 	l.waitGroup.Add(1)
-	go l.AcceptLoop()
+	go l.acceptLoop()
 	return nil
 }
 

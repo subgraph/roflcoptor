@@ -94,8 +94,8 @@ func TestLoadFilters(t *testing.T) {
 		t.Fail()
 	}
 
-	invalid_content := []byte("temporary file's content")
-	valid_content := []byte(`
+	invalidContent := []byte("temporary file's content")
+	validContent := []byte(`
 {
     "AuthNetAddr" : "tcp",
     "AuthAddr" : "127.0.0.1:6651",
@@ -120,12 +120,12 @@ func TestLoadFilters(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	file1 := filepath.Join(dir, "invalid_app_filter.json")
-	if err := ioutil.WriteFile(file1, invalid_content, 0666); err != nil {
+	if err := ioutil.WriteFile(file1, invalidContent, 0666); err != nil {
 		panic(err)
 	}
 
 	file2 := filepath.Join(dir, "valid_app_filter.json")
-	if err := ioutil.WriteFile(file2, valid_content, 0666); err != nil {
+	if err := ioutil.WriteFile(file2, validContent, 0666); err != nil {
 		panic(err)
 	}
 
@@ -167,8 +167,8 @@ func TestLoadFilterFile(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 	file1 := filepath.Join(dir, "vlad")
-	invalid_content := "{}"
-	if err := ioutil.WriteFile(file1, []byte(invalid_content), 0666); err != nil {
+	invalidContent := "{}"
+	if err := ioutil.WriteFile(file1, []byte(invalidContent), 0666); err != nil {
 		panic(err)
 	}
 	policy, err = p.LoadFilterFile(file1)
