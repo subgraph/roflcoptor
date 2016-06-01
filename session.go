@@ -14,27 +14,6 @@ import (
 	"github.com/yawning/bulb"
 )
 
-// ProcInfo represents an api that can be used to query process information about
-// the far side of a network connection
-type ProcInfo interface {
-	LookupTCPSocketProcess(srcPort uint16, dstAddr net.IP, dstPort uint16) *procsnitch.Info
-	LookupUNIXSocketProcess(socketFile string) *procsnitch.Info
-}
-
-// RealProcInfo represents our real ProcInfo api. This aids in the construction of unit tests.
-type RealProcInfo struct {
-}
-
-// LookupTCPSocketProcess returns the process information for a given TCP connection.
-func (r RealProcInfo) LookupTCPSocketProcess(srcPort uint16, dstAddr net.IP, dstPort uint16) *procsnitch.Info {
-	return procsnitch.LookupTCPSocketProcess(srcPort, dstAddr, dstPort)
-}
-
-// LookupUNIXSocketProcess returns the process information for a given UNIX socket connection.
-func (r RealProcInfo) LookupUNIXSocketProcess(socketFile string) *procsnitch.Info {
-	return procsnitch.LookupUNIXSocketProcess(socketFile)
-}
-
 // ProxyListener is used to listen for
 // Tor Control port connections and
 // dispatches them to worker sessions
@@ -46,7 +25,7 @@ type ProxyListener struct {
 	authedServices []*MortalService
 	onionDenyAddrs []AddrString
 	errChan        chan error
-	procInfo       ProcInfo
+	procInfo       procsnitch.ProcInfo
 	policyList     PolicyList
 }
 
@@ -56,7 +35,7 @@ func NewProxyListener(cfg *RoflcoptorConfig, watch bool) *ProxyListener {
 	p := ProxyListener{
 		cfg:        cfg,
 		watch:      watch,
-		procInfo:   RealProcInfo{},
+		procInfo:   procsnitch.SystemProcInfo{},
 		policyList: NewPolicyList(),
 	}
 	return &p
@@ -149,7 +128,7 @@ type ProxySession struct {
 	torControlAddress string
 	addOnionDenyList  []AddrString
 	watch             bool
-	procInfo          ProcInfo
+	procInfo          procsnitch.ProcInfo
 	policy            *SievePolicyJSONConfig
 	policyList        PolicyList
 
@@ -165,7 +144,7 @@ type ProxySession struct {
 
 // NewAuthProxySession creates an instance of ProxySession that is prepared with a previously
 // authenticated policy.
-func NewAuthProxySession(conn net.Conn, torControlNet, torControlAddress string, addOnionDenyList []AddrString, watch bool, procInfo ProcInfo, policy *SievePolicyJSONConfig) *ProxySession {
+func NewAuthProxySession(conn net.Conn, torControlNet, torControlAddress string, addOnionDenyList []AddrString, watch bool, procInfo procsnitch.ProcInfo, policy *SievePolicyJSONConfig) *ProxySession {
 	s := ProxySession{
 		torControlNet:     torControlNet,
 		torControlAddress: torControlAddress,
@@ -181,7 +160,7 @@ func NewAuthProxySession(conn net.Conn, torControlNet, torControlAddress string,
 
 // NewProxySession creates a ProxySession given a client's connection
 // to our proxy listener and a watch bool.
-func NewProxySession(conn net.Conn, torControlNet, torControlAddress string, addOnionDenyList []AddrString, watch bool, procInfo ProcInfo, policyList PolicyList) *ProxySession {
+func NewProxySession(conn net.Conn, torControlNet, torControlAddress string, addOnionDenyList []AddrString, watch bool, procInfo procsnitch.ProcInfo, policyList PolicyList) *ProxySession {
 	s := &ProxySession{
 		torControlNet:     torControlNet,
 		torControlAddress: torControlAddress,

@@ -35,6 +35,10 @@ func (r MockProcInfo) LookupUNIXSocketProcess(socketFile string) *procsnitch.Inf
 	return r.procInfo
 }
 
+func (r MockProcInfo) LookupUDPSocketProcess(srcPort uint16) *procsnitch.Info {
+	return r.procInfo
+}
+
 type AccumulatingListener struct {
 	net, address    string
 	buffer          bytes.Buffer
@@ -96,7 +100,7 @@ func (a *AccumulatingListener) SessionWorker(conn net.Conn) error {
 	return nil
 }
 
-func setupFakeProxyAndTorService(proxyNet, proxyAddress string, procInfo ProcInfo) (*AccumulatingListener, *ProxyListener) {
+func setupFakeProxyAndTorService(proxyNet, proxyAddress string, procInfo procsnitch.ProcInfo) (*AccumulatingListener, *ProxyListener) {
 	listeners := []AddrString{
 		{
 			Net:     proxyNet,
