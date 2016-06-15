@@ -16,6 +16,73 @@ can be allowed to authenticate with ROFLCoptor but this isn't necessary because 
 policy is applied based on the client application's exec path which is discovered by matching
 the socket inode via the Linux proc filesystem.
 
+# Usage
+
+A simple usage:
+
+```
+./roflcoptor -help
+Usage of ./roflcoptor:
+   -config string
+      configuration file
+   -watch
+      watch-mode of operation will default to unfiltered-allow policy
+```
+
+Normally watch-mode is only used when creating new filter rule sets.
+
+
+# Configuration
+
+Configure your /etc/tor/torrc with a control port listening on a UNIX domain socket:
+
+```
+ControlPort unix:/var/run/tor/control.socket GroupWritable
+CookieAuthentication 0
+```
+
+You have the option to use systemd to manage the starting/stopping of roflcoptor.
+Place the systemd unit file for roflcoptor daemon in /etc/systemd/system/roflcoptor.
+It should look something like this:
+
+```
+[Unit]
+Description=roflcoptor - onion router control port filtration daemon
+After=tor.service
+
+[Service]
+Type=simple
+User=root
+Group=debian-tor
+WorkingDirectory=/var/log/tor
+ExecStart=/usr/local/bin/roflcoptor -config /etc/roflcoptor/roflcoptor_config.json
+```
+
+Create the directory, /etc/roflcoptor, and /etc/roflcoptor/filters for the filter rule files.
+The json configuration file, /etc/roflcoptor/roflcoptor_config.json should look like this:
+
+```
+{
+    "LogFile" : "-",
+    "FiltersPath" : "/etc/roflcoptor/filters",
+    "TorControlNet" : "unix",
+    "TorControlAddress" : "/var/run/tor/control",
+    "Listeners" : [
+	{
+	    "Net" : "unix",
+	    "Address" : "/tmp/roflcoptor.socket"
+	},
+	{
+	    "Net" : "tcp",
+	    "Address" : "127.0.0.1:9051"
+	}
+    ]
+}
+```
+
+As you can see the filter rules directory is specified in the above config file.
+The filters in this repo are to be installed in the above specified filters directory, /etc/roflcoptor/filters.
+
 
 # Acknowledgements
 
