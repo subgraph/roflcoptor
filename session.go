@@ -65,8 +65,10 @@ func (p *ProxyListener) StartListeners() {
 	handleNewConnection := func(conn net.Conn) error {
 		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
 			conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
+
 		s := NewProxySession(conn,
 			p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, p.policyList)
+
 		s.sessionWorker()
 		return nil
 	}
@@ -111,6 +113,7 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 				conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
 			s := NewAuthProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, policy)
 			s.sessionWorker()
+
 			return nil
 		}
 		p.authedServices = append(p.authedServices, NewMortalService(location.Net, location.Address, handleNewConnection))
@@ -260,7 +263,15 @@ func (s *ProxySession) sessionWorker() {
 	} else {
 		procInfo := s.getProcInfo()
 		if procInfo == nil {
-			panic("wtf! impossible proc query failure.")
+			/* XXX
+			log.Printf("wtf! impossible proc query failure.")
+			_, err = s.writeAppConn([]byte("510 Tor Control proxy connection denied.\r\n"))
+			if err != nil {
+				s.errChan <- err
+			}
+			return
+			*/
+			panic("impossirus")
 		}
 		if procInfo.ExePath != "/usr/sbin/oz-daemon" {
 			// denied!
@@ -360,7 +371,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 		lineStr := strings.TrimSpace(string(line))
 
 		if s.watch {
-			log.Printf("A->T: [%s]\n", lineStr)
+			log.Printf("watch-mode: A->T: [%s]\n", lineStr)
 			_, err = s.torConn.Write([]byte(lineStr + "\r\n"))
 		} else {
 			outputMessage := s.clientSieve.Filter(lineStr)
@@ -381,6 +392,8 @@ func (s *ProxySession) proxyFilterAppToTor() {
 							s.errChan <- err
 						}
 						continue
+					} else {
+						log.Println("allowed ADD_ONION with ", lineStr)
 					}
 				}
 

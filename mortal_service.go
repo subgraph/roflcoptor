@@ -1,11 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"sync"
-	"time"
 )
 
 // MortalService can be killed at any time.
@@ -15,7 +13,7 @@ type MortalService struct {
 	connectionCallback func(net.Conn) error
 
 	conns     []net.Conn
-	quit      chan bool
+	stopping  bool
 	listener  net.Listener
 	waitGroup *sync.WaitGroup
 }
@@ -28,7 +26,7 @@ func NewMortalService(network, address string, connectionCallback func(net.Conn)
 		connectionCallback: connectionCallback,
 
 		conns:     make([]net.Conn, 0, 10),
-		quit:      make(chan bool),
+		stopping:  false,
 		waitGroup: &sync.WaitGroup{},
 	}
 	return &l
@@ -37,7 +35,7 @@ func NewMortalService(network, address string, connectionCallback func(net.Conn)
 // Stop will kill our listener and all it's connections
 func (l *MortalService) Stop() {
 	log.Printf("stopping listener service %s:%s", l.network, l.address)
-	close(l.quit)
+	l.stopping = true
 	if l.listener != nil {
 		l.listener.Close()
 	}
@@ -59,16 +57,11 @@ func (l *MortalService) acceptLoop() {
 
 	for {
 		conn, err := l.listener.Accept()
-		if nil != err {
-			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-				continue
+		if err != nil {
+			log.Printf("MortalService connection accept failure: %s\n", err)
+			if l.stopping {
+				return
 			} else {
-				log.Printf("MortalService connection accept failure: %s\n", err)
-				select {
-				case <-l.quit:
-					return
-				default:
-				}
 				continue
 			}
 		}
@@ -78,41 +71,10 @@ func (l *MortalService) acceptLoop() {
 	}
 }
 
-func (l *MortalService) createDeadlinedListener() error {
-	if l.network == "tcp" {
-		tcpAddr, err := net.ResolveTCPAddr("tcp", l.address)
-		if err != nil {
-			return fmt.Errorf("MortalService.createDeadlinedListener %s %s failure: %s", l.network, l.address, err)
-		}
-		tcpListener, err := net.ListenTCP("tcp", tcpAddr)
-		if err != nil {
-			return fmt.Errorf("MortalService.createDeadlinedListener %s %s failure: %s", l.network, l.address, err)
-		}
-		tcpListener.SetDeadline(time.Now().Add(1e9))
-		l.listener = tcpListener
-		return nil
-	} else if l.network == "unix" {
-		unixAddr, err := net.ResolveUnixAddr("unix", l.address)
-		if err != nil {
-			return fmt.Errorf("MortalService.createDeadlinedListener %s %s failure: %s", l.network, l.address, err)
-		}
-		unixListener, err := net.ListenUnix("unix", unixAddr)
-		if err != nil {
-			return fmt.Errorf("MortalService.createDeadlinedListener %s %s failure: %s", l.network, l.address, err)
-		}
-		unixListener.SetDeadline(time.Now().Add(1e9))
-		l.listener = unixListener
-		return nil
-	} else {
-		panic("")
-	}
-	return nil
-}
-
 // Start the MortalService
 func (l *MortalService) Start() error {
 	var err error
-	err = l.createDeadlinedListener()
+	l.listener, err = net.Listen(l.network, l.address)
 	if err != nil {
 		return err
 	}
@@ -129,12 +91,9 @@ func (l *MortalService) handleConnection(conn net.Conn, id int) error {
 	}()
 
 	log.Printf("Starting connection #%d", id)
-
-	for {
-		if err := l.connectionCallback(conn); err != nil {
-			log.Println(err.Error())
-			return err
-		}
-		return nil
+	if err := l.connectionCallback(conn); err != nil {
+		//log.Println(err.Error())
+		return err
 	}
+	return nil
 }
