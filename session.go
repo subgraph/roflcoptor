@@ -272,6 +272,10 @@ func (s *ProxySession) initTorControl() error {
 	return nil
 }
 
+func (s *ProxySession) TorVersion() string {
+	return s.protoInfo.TorVersion
+}
+
 func (s *ProxySession) appConnWrite(fromServer bool, b []byte) (int, error) {
 	var prefix string
 	if fromServer {
@@ -327,8 +331,7 @@ func (s *ProxySession) onCmdProtocolInfo(splitCmd []string) error {
 			return err
 		}
 	}
-	// XXX torVersion := s.backend.TorVersion()
-	torVersion := "2.7.1" // XXX fix me
+	torVersion := s.TorVersion()
 	respStr := "250-PROTOCOLINFO 1\r\n250-AUTH METHODS=NULL,HASHEDPASSWORD\r\n250-VERSION Tor=\"" + torVersion + "\"\r\n" + responseOk
 	_, err := s.appConnWrite(false, []byte(respStr))
 	return err
