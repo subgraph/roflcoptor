@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -12,6 +14,20 @@ import (
 
 	"github.com/subgraph/go-procsnitch"
 	"github.com/yawning/bulb"
+)
+
+const (
+	cmdProtocolInfo  = "PROTOCOLINFO"
+	cmdAuthenticate  = "AUTHENTICATE"
+	cmdAuthChallenge = "AUTHCHALLENGE"
+	cmdQuit          = "QUIT"
+	cmdGetInfo       = "GETINFO"
+	cmdSignal        = "SIGNAL"
+
+	responseOk = "250 OK\r\n"
+
+	errAuthenticationRequired = "514 Authentication required\r\n"
+	errUnrecognizedCommand    = "510 Unrecognized command\r\n"
 )
 
 // ProxyListener is used to listen for
@@ -126,23 +142,31 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 
 // ProxySession is used to manage is single Tor Control port filter proxy session
 type ProxySession struct {
-	appConn           net.Conn
+	sync.WaitGroup
+
+	appConn          net.Conn
+	appConnReader    *bufio.Reader
+	appConnWriteLock sync.Mutex
+
 	torControlNet     string
 	torControlAddress string
-	addOnionDenyList  []AddrString
-	watch             bool
-	procInfo          procsnitch.ProcInfo
-	policy            *SievePolicyJSONConfig
-	policyList        PolicyList
+
+	addOnionDenyList []AddrString
+
+	isPreAuth bool
+	watch     bool
+
+	procInfo procsnitch.ProcInfo
+
+	policy     *SievePolicyJSONConfig
+	policyList PolicyList
 
 	clientSieve *Sieve
 	serverSieve *Sieve
-	torConn     *bulb.Conn
-	protoInfo   *bulb.ProtocolInfo
-	appConnLock sync.Mutex
-	errChan     chan error
 
-	sync.WaitGroup
+	torConn   *bulb.Conn
+	protoInfo *bulb.ProtocolInfo
+	errChan   chan error
 }
 
 // NewAuthProxySession creates an instance of ProxySession that is prepared with a previously
@@ -155,8 +179,10 @@ func NewAuthProxySession(conn net.Conn, torControlNet, torControlAddress string,
 		policy:            policy,
 		watch:             watch,
 		appConn:           conn,
+		appConnReader:     bufio.NewReader(conn),
 		procInfo:          procInfo,
 		errChan:           make(chan error, 2),
+		isPreAuth:         true,
 	}
 	return &s
 }
@@ -170,9 +196,11 @@ func NewProxySession(conn net.Conn, torControlNet, torControlAddress string, add
 		addOnionDenyList:  addOnionDenyList,
 		watch:             watch,
 		appConn:           conn,
+		appConnReader:     bufio.NewReader(conn),
 		errChan:           make(chan error, 2),
 		procInfo:          procInfo,
 		policyList:        policyList,
+		isPreAuth:         true,
 	}
 	return s
 }
@@ -244,6 +272,106 @@ func (s *ProxySession) initTorControl() error {
 	return nil
 }
 
+func (s *ProxySession) appConnWrite(fromServer bool, b []byte) (int, error) {
+	var prefix string
+	if fromServer {
+		prefix = "S->C:"
+	} else if s.isPreAuth {
+		prefix = "P->C [PreAuth]:"
+	} else {
+		prefix = "P->C:"
+	}
+
+	s.appConnWriteLock.Lock()
+	defer s.appConnWriteLock.Unlock()
+	log.Printf("DEBUG/tor: %s %s", prefix, bytes.TrimSpace(b))
+	return s.appConn.Write(b)
+}
+
+func (s *ProxySession) appConnReadLine() (cmd string, splitCmd []string, rawLine []byte, err error) {
+	if rawLine, err = s.appConnReader.ReadBytes('\n'); err != nil {
+		return
+	}
+
+	var prefix string
+	if s.isPreAuth {
+		prefix = "C [PreAuth]:"
+	} else {
+		prefix = "C:"
+	}
+	trimmedLine := bytes.TrimSpace(rawLine)
+	log.Printf("DEBUG/tor: %s %s", prefix, trimmedLine)
+
+	splitCmd = strings.Split(string(trimmedLine), " ")
+	cmd = strings.ToUpper(strings.TrimSpace(splitCmd[0]))
+	return
+}
+
+func (s *ProxySession) sendErrAuthenticationRequired() error {
+	_, err := s.appConnWrite(false, []byte(errAuthenticationRequired))
+	return err
+}
+
+func (s *ProxySession) sendErrUnrecognizedCommand() error {
+	_, err := s.appConnWrite(false, []byte(errUnrecognizedCommand))
+	return err
+}
+
+func (s *ProxySession) onCmdProtocolInfo(splitCmd []string) error {
+	for i := 1; i < len(splitCmd); i++ {
+		v := splitCmd[i]
+		if _, err := strconv.ParseInt(v, 10, 32); err != nil {
+			log.Printf("PROTOCOLINFO received with invalid arg")
+			respStr := "513 No such version \"" + v + "\"\r\n"
+			_, err := s.appConnWrite(false, []byte(respStr))
+			return err
+		}
+	}
+	// XXX torVersion := s.backend.TorVersion()
+	torVersion := "2.7.1" // XXX fix me
+	respStr := "250-PROTOCOLINFO 1\r\n250-AUTH METHODS=NULL,HASHEDPASSWORD\r\n250-VERSION Tor=\"" + torVersion + "\"\r\n" + responseOk
+	_, err := s.appConnWrite(false, []byte(respStr))
+	return err
+}
+
+func (s *ProxySession) processPreAuth() error {
+	sentProtocolInfo := false
+	for {
+		cmd, splitCmd, _, err := s.appConnReadLine()
+		if err != nil {
+			log.Printf("[PreAuth]: Failed reading client request: %s", err)
+			return err
+		}
+
+		switch cmd {
+		case cmdProtocolInfo:
+			if sentProtocolInfo {
+				s.sendErrAuthenticationRequired()
+				return errors.New("Client already sent PROTOCOLINFO already")
+			}
+			sentProtocolInfo = true
+			if err = s.onCmdProtocolInfo(splitCmd); err != nil {
+				return err
+			}
+		case cmdAuthenticate:
+			_, err = s.appConnWrite(false, []byte(responseOk))
+			s.isPreAuth = false
+			return err
+		case cmdAuthChallenge:
+			// WTF?  We should never see this since PROTOCOLINFO lies about the
+			// supported authentication types.
+			s.sendErrUnrecognizedCommand()
+			return errors.New("Client sent AUTHCHALLENGE, when not supported")
+		case cmdQuit:
+			return errors.New("Client requested connection close")
+		default:
+			s.sendErrAuthenticationRequired()
+			return fmt.Errorf("Invalid app command: '%s'", cmd)
+		}
+	}
+	return nil
+}
+
 func (s *ProxySession) sessionWorker() {
 	defer s.appConn.Close()
 	var err error
@@ -254,7 +382,7 @@ func (s *ProxySession) sessionWorker() {
 	if s.policy == nil {
 		s.policy = s.getFilterPolicy()
 		if s.policy == nil && !s.watch {
-			_, err = s.writeAppConn([]byte("510 Tor Control proxy connection denied.\r\n"))
+			_, err = s.appConnWrite(false, []byte("510 Tor Control proxy connection denied.\r\n"))
 			if err != nil {
 				s.errChan <- err
 			}
@@ -263,20 +391,18 @@ func (s *ProxySession) sessionWorker() {
 	} else {
 		procInfo := s.getProcInfo()
 		if procInfo == nil {
-			/* XXX
 			log.Printf("wtf! impossible proc query failure.")
-			_, err = s.writeAppConn([]byte("510 Tor Control proxy connection denied.\r\n"))
+			_, err = s.appConnWrite(false, []byte("510 Tor Control proxy connection denied.\r\n"))
 			if err != nil {
 				s.errChan <- err
 			}
 			return
-			*/
-			panic("impossirus")
+			// XXX panic("impossirus")
 		}
 		if procInfo.ExePath != "/usr/sbin/oz-daemon" {
 			// denied!
 			log.Printf("ALERT/tor: pre auth socket was connected to by a app other than the oz-daemon")
-			_, err = s.writeAppConn([]byte("510 Tor Control proxy connection denied.\r\n"))
+			_, err = s.appConnWrite(false, []byte("510 Tor Control proxy connection denied.\r\n"))
 			if err != nil {
 				s.errChan <- err
 			}
@@ -295,6 +421,12 @@ func (s *ProxySession) sessionWorker() {
 	}
 	defer s.torConn.Close()
 
+	// Handle all of the allowed commands till the client authenticates.
+	if err := s.processPreAuth(); err != nil {
+		log.Printf("ERR/tor: [PreAuth]: %s", err)
+		return
+	}
+
 	s.Add(2)
 	go s.proxyFilterTorToApp()
 	go s.proxyFilterAppToTor()
@@ -308,14 +440,6 @@ func (s *ProxySession) sessionWorker() {
 	} else {
 		log.Printf("INFO/tor: Closed client connection from: %v", clientAddr)
 	}
-}
-
-// writeAppConn uses a lock so that both connection processing goroutines
-// can write to the client connection.
-func (s *ProxySession) writeAppConn(b []byte) (int, error) {
-	s.appConnLock.Lock()
-	defer s.appConnLock.Unlock()
-	return s.appConn.Write(b)
 }
 
 // proxyFilterTorToApp is used to filter the tor control
@@ -335,11 +459,11 @@ func (s *ProxySession) proxyFilterTorToApp() {
 		lineStr := strings.TrimSpace(string(line))
 		log.Printf("A<-T: [%s]\n", lineStr)
 		if s.watch {
-			_, err = s.writeAppConn([]byte(lineStr + "\r\n"))
+			_, err = s.appConnWrite(true, line)
 		} else {
 			outputMessage := s.serverSieve.Filter(lineStr)
 			if outputMessage != "" {
-				_, err = s.writeAppConn([]byte(outputMessage + "\r\n"))
+				_, err = s.appConnWrite(true, []byte(outputMessage+"\r\n"))
 			}
 		}
 		if err != nil {
@@ -361,44 +485,52 @@ func (s *ProxySession) proxyFilterTorToApp() {
 // If watch-mode is enabled we pipeline messages without filtration.
 func (s *ProxySession) proxyFilterAppToTor() {
 	defer s.Done()
-	appConnReader := bufio.NewReader(s.appConn)
 	for {
-		line, err := appConnReader.ReadBytes('\n')
+		cmd, splitCmd, raw, err := s.appConnReadLine()
+		cmdLine := strings.TrimSpace(string(raw))
 		if err != nil {
 			s.errChan <- err
 			break
 		}
-		lineStr := strings.TrimSpace(string(line))
 
 		if s.watch {
-			log.Printf("watch-mode: A->T: [%s]\n", lineStr)
-			_, err = s.torConn.Write([]byte(lineStr + "\r\n"))
+			log.Printf("watch-mode: A->T: [%s]\n", cmdLine)
+			_, err = s.torConn.Write([]byte(raw))
 		} else {
-			outputMessage := s.clientSieve.Filter(lineStr)
+			if cmd == cmdProtocolInfo {
+				err = s.onCmdProtocolInfo(splitCmd)
+				if err != nil {
+					s.errChan <- err
+					break
+				}
+				continue
+			}
+
+			outputMessage := s.clientSieve.Filter(cmdLine)
 			if outputMessage == "" {
-				_, err = s.writeAppConn([]byte("250 Tor Control command proxy denied: filtration policy.\r\n"))
+				_, err = s.appConnWrite(false, []byte("250 Tor Control command proxy denied: filtration policy.\r\n"))
 				continue
 			} else {
 				// handle the ADD_ONION special case
 				splitCmd := strings.Split(outputMessage, " ")
 				cmd := strings.ToUpper(splitCmd[0])
 				if cmd == "ADD_ONION" {
-					ok := s.shouldAllowOnion(lineStr)
+					ok := s.shouldAllowOnion(cmdLine)
 					if !ok {
-						_, err = s.writeAppConn([]byte("510 Tor Control proxy ADD_ONION denied.\r\n"))
-						log.Printf("Denied A->T: [%s]\n", lineStr)
+						_, err = s.appConnWrite(false, []byte("510 Tor Control proxy ADD_ONION denied.\r\n"))
+						log.Printf("Denied A->T: [%s]\n", cmdLine)
 						log.Print("Attempt to use ADD_ONION with a control port as target.")
 						if err != nil {
 							s.errChan <- err
 						}
 						continue
 					} else {
-						log.Println("allowed ADD_ONION with ", lineStr)
+						log.Println("allowed ADD_ONION with ", cmdLine)
 					}
 				}
 
 				// send command to tor
-				log.Printf("A->T: [%s]\n", lineStr)
+				log.Printf("A->T: [%s]\n", cmdLine)
 				_, err = s.torConn.Write([]byte(outputMessage + "\r\n"))
 			}
 			if err != nil {

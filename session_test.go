@@ -296,9 +296,9 @@ func TestProxyListenerSession(t *testing.T) {
 		t.Fail()
 	}
 	*/
-	fmt.Printf("acc -%s-\n", fakeTorService.buffer.String())
-	if fakeTorService.buffer.String() != "PROTOCOLINFO\nAUTHENTICATE\nPROTOCOLINFO\nAUTHENTICATE\nADD_ONION NEW:BEST Port=4491,80\n" {
-		t.Errorf("accumulated control commands don't match", err)
+	want := "PROTOCOLINFO\nAUTHENTICATE\nADD_ONION NEW:BEST Port=4491,80\n"
+	if fakeTorService.buffer.String() != want {
+		t.Errorf("accumulated control commands don't match: got:\n%s\n\nbut expected:\n%s", fakeTorService.buffer.String(), want)
 		t.Fail()
 	}
 }
@@ -358,9 +358,9 @@ func TestProxyListenerWatchModeSession(t *testing.T) {
 		panic(err)
 	}
 
-	fmt.Printf("acc -%s-\n", fakeTorService.buffer.String())
-	if fakeTorService.buffer.String() != "PROTOCOLINFO\nAUTHENTICATE\nPROTOCOLINFO\nAUTHENTICATE\n" {
-		t.Errorf("accumulated control commands don't match", err)
+	want := "PROTOCOLINFO\nAUTHENTICATE\n"
+	if fakeTorService.buffer.String() != want {
+		t.Errorf("accumulated control commands don't match: got:\n%s\n\nbut expected:\n%s", fakeTorService.buffer.String(), want)
 		t.Fail()
 	}
 }
