@@ -5,7 +5,7 @@
     "client-allowed" : ["SIGNAL NEWNYM","GETINFO net/listeners/socks", "GETCONF UseBridges", "GETCONF Bridge",
 			"GETCONF Socks4Proxy", "GETCONF Socks5Proxy", "GETCONF HTTPSProxy",
 		       "GETCONF ReachableAddresses"],
-    "client-allowed-prefixes" : ["AUTHENTICATE"],
+    "client-allowed-prefixes" : [],
     "client-replacements" : {},
     "client-replacement-prefixes" : {},
     "server-allowed" : ["250 OK", "250-net/listeners/socks=\"127.0.0.1:9050\"", "250 UseBridges=0",

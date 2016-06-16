@@ -9,9 +9,8 @@
     "client-replacements" : {
 	"SETEVENTS NOTICE ERR NEWDESC NEWCONSENSUS WARN CIRC BW NS" : "SETEVENTS NEWCONSENSUS BW"
     },
-    "client-replacement-prefixes" : {"AUTHENTICATE":"AUTHENTICATE"},
+    "client-replacement-prefixes" : {},
     "server-allowed" : ["250-PROTOCOLINFO 1",
-			"250-AUTH METHODS=COOKIE,SAFECOOKIE COOKIEFILE=\"/var/run/tor/control.authcookie\"",
 			"250 OK",
 			"250 ORPort"],
     "server-allowed-prefixes" : ["GETCONF BandwidthRate", "GETCONF BandwidthBurst",

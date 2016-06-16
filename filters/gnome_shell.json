@@ -1,12 +1,10 @@
 {
     "exec-path": "/usr/bin/gnome-shell",
-    "client-allowed" : ["PROTOCOLINFO", "GETINFO status/bootstrap-phase", "SIGNAL NEWNYM"],
+    "client-allowed" : ["GETINFO status/bootstrap-phase", "SIGNAL NEWNYM"],
     "client-allowed-prefixes" : [],
     "client-replacements" : {},
-    "client-replacement-prefixes" : {"AUTHENTICATE":"AUTHENTICATE"},
-    "server-allowed" : ["250-PROTOCOLINFO 1",
-			"250-AUTH METHODS=COOKIE,SAFECOOKIE COOKIEFILE=\"/var/run/tor/control.authcookie\"",
-			"250-status/bootstrap-phase=NOTICE BOOTSTRAP PROGRESS=100 TAG=done SUMMARY=\"Done\"",
+    "client-replacement-prefixes" : {},
+    "server-allowed" : ["250-status/bootstrap-phase=NOTICE BOOTSTRAP PROGRESS=100 TAG=done SUMMARY=\"Done\"",
                         "250 OK"],
     "server-allowed-prefixes" : [],
     "server-replacement-prefixes" : {}
