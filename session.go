@@ -238,13 +238,13 @@ func (s *ProxySession) getFilterPolicy() *SievePolicyJSONConfig {
 		log.Printf("Could not find process information for connection %s:%s", s.appConn.LocalAddr().Network(), s.appConn.LocalAddr().String())
 		return nil
 	}
-	filter := s.policyList.getFilterForPathAndUID(procInfo.ExePath, procInfo.UID)
+	filter := s.policyList.getFilterForPath(procInfo.ExePath)
 	if filter == nil {
-		filter = s.policyList.getFilterForPath(procInfo.ExePath)
-	}
-	if filter == nil {
-		log.Println("Filter policy not found for:", procInfo.ExePath)
-		return nil
+		filter = s.policyList.getFilterForPathAndUID(procInfo.ExePath, procInfo.UID)
+		if filter == nil {
+			log.Println("Filter policy not found for:", procInfo.ExePath)
+			return nil
+		}
 	}
 	return filter
 }
@@ -460,8 +460,8 @@ func (s *ProxySession) proxyFilterTorToApp() {
 			break
 		}
 		lineStr := strings.TrimSpace(string(line))
-		log.Printf("A<-T: [%s]\n", lineStr)
-		if s.watch {
+		if s.watch && s.policy == nil {
+			log.Printf("watch-mode: A<-T: [%s]\n", lineStr)
 			_, err = s.appConnWrite(true, line)
 		} else {
 			outputMessage := s.serverSieve.Filter(lineStr)
@@ -496,7 +496,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 			break
 		}
 
-		if s.watch {
+		if s.watch && s.policy == nil {
 			log.Printf("watch-mode: A->T: [%s]\n", cmdLine)
 			_, err = s.torConn.Write([]byte(raw))
 		} else {
@@ -531,9 +531,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 						log.Println("allowed ADD_ONION with ", cmdLine)
 					}
 				}
-
 				// send command to tor
-				log.Printf("A->T: [%s]\n", cmdLine)
 				_, err = s.torConn.Write([]byte(outputMessage + "\r\n"))
 			}
 			if err != nil {
