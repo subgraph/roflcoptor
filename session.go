@@ -375,6 +375,30 @@ func (s *ProxySession) processPreAuth() error {
 	return nil
 }
 
+func (s *ProxySession) allowConnection() bool {
+	if s.policy == nil {
+		s.policy = s.getFilterPolicy()
+		if s.policy == nil && !s.watch {
+			return false
+		}
+	} else {
+		procInfo := s.getProcInfo()
+		if procInfo == nil {
+			log.Printf("impossible procsnitch failure")
+			return false
+		}
+		if procInfo.ExePath != "/usr/sbin/oz-daemon" {
+			// denied!
+			log.Printf("ALERT/tor: pre auth socket was connected to by a app other than the oz-daemon")
+			return false
+		}
+	}
+	if s.policy != nil {
+		s.clientSieve, s.serverSieve = s.policy.GetSieves()
+	}
+	return true
+}
+
 func (s *ProxySession) sessionWorker() {
 	defer s.appConn.Close()
 	var err error
@@ -382,38 +406,12 @@ func (s *ProxySession) sessionWorker() {
 	clientAddr := s.appConn.RemoteAddr()
 	log.Printf("INFO/tor: New ctrl connection from: %s", clientAddr)
 
-	if s.policy == nil {
-		s.policy = s.getFilterPolicy()
-		if s.policy == nil && !s.watch {
-			_, err = s.appConnWrite(false, []byte("510 Tor Control proxy connection denied.\r\n"))
-			if err != nil {
-				s.errChan <- err
-			}
-			return
+	if allow := s.allowConnection(); !allow {
+		_, err = s.appConnWrite(false, []byte("510 Tor Control proxy connection denied.\r\n"))
+		if err != nil {
+			s.errChan <- err
 		}
-	} else {
-		procInfo := s.getProcInfo()
-		if procInfo == nil {
-			log.Printf("wtf! impossible proc query failure.")
-			_, err = s.appConnWrite(false, []byte("510 Tor Control proxy connection denied.\r\n"))
-			if err != nil {
-				s.errChan <- err
-			}
-			return
-			// XXX panic("impossirus")
-		}
-		if procInfo.ExePath != "/usr/sbin/oz-daemon" {
-			// denied!
-			log.Printf("ALERT/tor: pre auth socket was connected to by a app other than the oz-daemon")
-			_, err = s.appConnWrite(false, []byte("510 Tor Control proxy connection denied.\r\n"))
-			if err != nil {
-				s.errChan <- err
-			}
-			return
-		}
-	}
-	if s.policy != nil {
-		s.clientSieve, s.serverSieve = s.policy.GetSieves()
+		return
 	}
 
 	// Authenticate with the real control port
