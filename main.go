@@ -18,11 +18,42 @@ import (
 	"bufio"
 	"encoding/json"
 	"flag"
-	"fmt"
-	"log"
 	"os"
 	"os/signal"
+	"syscall"
+	"unsafe"
+
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("roflcoptor")
+
+var logFormat = logging.MustStringFormatter(
+	"%{level:.4s} %{id:03x} %{message}",
+)
+var ttyFormat = logging.MustStringFormatter(
+	"%{color}%{time:15:04:05} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}",
+)
+
+const ioctlReadTermios = 0x5401
+
+func isTerminal(fd int) bool {
+	var termios syscall.Termios
+	_, _, err := syscall.Syscall6(syscall.SYS_IOCTL, uintptr(fd), ioctlReadTermios, uintptr(unsafe.Pointer(&termios)), 0, 0, 0)
+	return err == 0
+}
+
+func setupLoggerBackend() logging.LeveledBackend {
+	format := logFormat
+	if isTerminal(int(os.Stderr.Fd())) {
+		format = ttyFormat
+	}
+	backend := logging.NewLogBackend(os.Stderr, "", 0)
+	formatter := logging.NewBackendFormatter(backend, format)
+	leveler := logging.AddModuleLevel(formatter)
+	leveler.SetLevel(logging.INFO, "roflcoptor")
+	return leveler
+}
 
 // RoflcoptorConfig is used to configure our
 // tor contorl port filtering proxy daemon
@@ -76,28 +107,27 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(config)
+	logBackend := setupLoggerBackend()
+	log.SetBackend(logBackend)
 
-	log.SetPrefix("ROFLCopTor ")
-	if config.LogFile == "-" {
-		log.SetOutput(os.Stderr)
-	} else if config.LogFile != "" {
-		f, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-		if err != nil {
-			log.Fatalf("Failed to create log file: %s\n", err)
-		}
-		log.SetOutput(f)
+	// XXX must be run as root until #27 is resolved
+	// https://github.com/subgraph/roflcoptor/issues/27
+	if os.Geteuid() != 0 {
+		log.Error("Must be run as root")
+		os.Exit(1)
 	}
 
 	sigKillChan := make(chan os.Signal, 1)
 	signal.Notify(sigKillChan, os.Interrupt, os.Kill)
 
+	log.Notice("roflcoptor startup!")
 	proxyListener := NewProxyListener(config, watchMode)
 	proxyListener.StartListeners()
 	defer proxyListener.StopListeners()
 	for {
 		select {
 		case <-sigKillChan:
+			log.Notice("roflcoptor shutdown!")
 			return
 		}
 	}

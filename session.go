@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"regexp"
 	"strconv"
@@ -79,7 +78,7 @@ func (p *ProxyListener) StartListeners() {
 
 	// start the main listeners
 	handleNewConnection := func(conn net.Conn) error {
-		log.Printf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
+		log.Debugf("CONNECTION received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
 			conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
 
 		s := NewProxySession(conn,
@@ -125,7 +124,7 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 	locations := p.policyList.getAuthenticatedPolicyAddresses()
 	for location, policy := range locations {
 		handleNewConnection := func(conn net.Conn) error {
-			log.Printf("connection received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
+			log.Debugf("connection received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
 				conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
 			s := NewAuthProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, policy)
 			s.sessionWorker()
@@ -156,7 +155,8 @@ type ProxySession struct {
 	isPreAuth bool
 	watch     bool
 
-	procInfo procsnitch.ProcInfo
+	procInfo   procsnitch.ProcInfo
+	myProcInfo *procsnitch.Info
 
 	policy     *SievePolicyJSONConfig
 	policyList PolicyList
@@ -205,8 +205,7 @@ func NewProxySession(conn net.Conn, torControlNet, torControlAddress string, add
 	return s
 }
 
-func (s *ProxySession) getProcInfo() *procsnitch.Info {
-	var procInfo *procsnitch.Info
+func (s *ProxySession) getProcInfo() {
 	// XXX fix me for tcp4 and tcp6?
 	if s.appConn.LocalAddr().Network() == "tcp" {
 		fields := strings.Split(s.appConn.RemoteAddr().String(), ":")
@@ -214,18 +213,33 @@ func (s *ProxySession) getProcInfo() *procsnitch.Info {
 
 		fields = strings.Split(s.appConn.LocalAddr().String(), ":")
 		dstIP := net.ParseIP(fields[0])
-		// XXX not necessary; should never fail to parse!
-		//if dstIP == nil {
-		//	s.appConn.Close()
-		//	panic(fmt.Sprintf("impossible error: net.ParseIP fail for: %s\n", fields[1]))
-		//}
+		if dstIP == nil {
+			s.appConn.Close()
+			errMsg := fmt.Sprintf("impossible error: net.ParseIP fail for: %s\n", fields[1])
+			log.Critical(errMsg)
+			panic(errMsg)
+		}
 		srcP, _ := strconv.ParseUint(dstPortStr, 10, 16)
 		dstP, _ := strconv.ParseUint(fields[1], 10, 16)
-		procInfo = s.procInfo.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
+		s.myProcInfo = s.procInfo.LookupTCPSocketProcess(uint16(srcP), dstIP, uint16(dstP))
 	} else if s.appConn.LocalAddr().Network() == "unix" {
-		procInfo = s.procInfo.LookupUNIXSocketProcess(s.appConn.LocalAddr().String())
+		s.myProcInfo = s.procInfo.LookupUNIXSocketProcess(s.appConn.LocalAddr().String())
+	} else {
+		log.Critical("impossible network protocol connection received")
+		panic("wtf")
 	}
-	return procInfo
+	if s.myProcInfo == nil {
+		log.Errorf("Could not find process information for connection %s:%s", s.appConn.LocalAddr().Network(), s.appConn.LocalAddr().String())
+	} else {
+		log.Noticef("Connection made by %s (ExePath), %d (PID): %s:%s <- %s:%s",
+			s.myProcInfo.ExePath,
+			s.myProcInfo.Pid,
+			s.appConn.LocalAddr().Network(),
+			s.appConn.LocalAddr().String(),
+			s.appConn.RemoteAddr().Network(),
+			s.appConn.RemoteAddr().String(),
+		)
+	}
 }
 
 // getFilterPolicy returns a *ServerClientFilterConfig
@@ -233,16 +247,15 @@ func (s *ProxySession) getProcInfo() *procsnitch.Info {
 // Note that the calling party should decide whether or not to close
 // the connection.
 func (s *ProxySession) getFilterPolicy() *SievePolicyJSONConfig {
-	procInfo := s.getProcInfo()
-	if procInfo == nil {
-		log.Printf("Could not find process information for connection %s:%s", s.appConn.LocalAddr().Network(), s.appConn.LocalAddr().String())
+	s.getProcInfo()
+	if s.myProcInfo == nil {
 		return nil
 	}
-	filter := s.policyList.getFilterForPath(procInfo.ExePath)
+	filter := s.policyList.getFilterForPath(s.myProcInfo.ExePath)
 	if filter == nil {
-		filter = s.policyList.getFilterForPathAndUID(procInfo.ExePath, procInfo.UID)
+		filter = s.policyList.getFilterForPathAndUID(s.myProcInfo.ExePath, s.myProcInfo.UID)
 		if filter == nil {
-			log.Println("Filter policy not found for:", procInfo.ExePath)
+			log.Errorf("Filter policy not found for: %s", s.myProcInfo.ExePath)
 			return nil
 		}
 	}
@@ -256,18 +269,18 @@ func (s *ProxySession) initTorControl() error {
 	var err error
 	// Connect to the real control port.
 	if s.torConn, err = bulb.Dial(s.torControlNet, s.torControlAddress); err != nil {
-		return fmt.Errorf("ERR/tor: Failed to connect to tor control port: %v", err)
+		return fmt.Errorf("Failed to connect to tor control port: %v", err)
 	}
 	// Issue a PROTOCOLINFO, so we can send a realistic response.
 	if s.protoInfo, err = s.torConn.ProtocolInfo(); err != nil {
 		s.torConn.Close()
-		return fmt.Errorf("ERR/tor: Failed to issue PROTOCOLINFO: %v", err)
+		return fmt.Errorf("Failed to issue PROTOCOLINFO: %v", err)
 	}
 	// Authenticate with the real tor control port.
 	// XXX: Pull password out of `b.s.cfg`.
 	if err = s.torConn.Authenticate(""); err != nil {
 		s.torConn.Close()
-		return fmt.Errorf("ERR/tor: Failed to authenticate: %v", err)
+		return fmt.Errorf("Failed to authenticate: %v", err)
 	}
 	return nil
 }
@@ -277,18 +290,24 @@ func (s *ProxySession) TorVersion() string {
 }
 
 func (s *ProxySession) appConnWrite(fromServer bool, b []byte) (int, error) {
-	var prefix string
-	if fromServer {
-		prefix = "S->C:"
-	} else if s.isPreAuth {
-		prefix = "P->C [PreAuth]:"
+	var appName, prefix string
+	if s.myProcInfo != nil {
+		appName = fmt.Sprintf("[%s] ", s.myProcInfo.ExePath)
 	} else {
-		prefix = "P->C:"
+		appName = ""
+	}
+
+	if fromServer {
+		prefix = appName + "S->C:"
+	} else if s.isPreAuth {
+		prefix = appName + "P->C [PreAuth]:"
+	} else {
+		prefix = appName + "P->C:"
 	}
 
 	s.appConnWriteLock.Lock()
 	defer s.appConnWriteLock.Unlock()
-	log.Printf("DEBUG/tor: %s %s", prefix, bytes.TrimSpace(b))
+	log.Debugf("%s %s", prefix, bytes.TrimSpace(b))
 	return s.appConn.Write(b)
 }
 
@@ -296,15 +315,15 @@ func (s *ProxySession) appConnReadLine() (cmd string, splitCmd []string, rawLine
 	if rawLine, err = s.appConnReader.ReadBytes('\n'); err != nil {
 		return
 	}
-
+	appName := fmt.Sprintf("[%s] ", s.myProcInfo.ExePath)
 	var prefix string
 	if s.isPreAuth {
-		prefix = "C [PreAuth]:"
+		prefix = appName + "C [PreAuth]:"
 	} else {
-		prefix = "C:"
+		prefix = appName + "C:"
 	}
 	trimmedLine := bytes.TrimSpace(rawLine)
-	log.Printf("DEBUG/tor: %s %s", prefix, trimmedLine)
+	log.Debugf("%s %s", prefix, trimmedLine)
 
 	splitCmd = strings.Split(string(trimmedLine), " ")
 	cmd = strings.ToUpper(strings.TrimSpace(splitCmd[0]))
@@ -325,7 +344,7 @@ func (s *ProxySession) onCmdProtocolInfo(splitCmd []string) error {
 	for i := 1; i < len(splitCmd); i++ {
 		v := splitCmd[i]
 		if _, err := strconv.ParseInt(v, 10, 32); err != nil {
-			log.Printf("PROTOCOLINFO received with invalid arg")
+			log.Errorf("PROTOCOLINFO received with invalid arg")
 			respStr := "513 No such version \"" + v + "\"\r\n"
 			_, err := s.appConnWrite(false, []byte(respStr))
 			return err
@@ -342,7 +361,7 @@ func (s *ProxySession) processPreAuth() error {
 	for {
 		cmd, splitCmd, _, err := s.appConnReadLine()
 		if err != nil {
-			log.Printf("[PreAuth]: Failed reading client request: %s", err)
+			log.Errorf("[PreAuth]: Failed reading client request: %s", err)
 			return err
 		}
 
@@ -379,17 +398,14 @@ func (s *ProxySession) allowConnection() bool {
 	if s.policy == nil {
 		s.policy = s.getFilterPolicy()
 		if s.policy == nil && !s.watch {
+			log.Error("failed to retreive filter policy whilest running in non-watch-mode")
 			return false
 		}
 	} else {
-		procInfo := s.getProcInfo()
-		if procInfo == nil {
-			log.Printf("impossible procsnitch failure")
-			return false
-		}
-		if procInfo.ExePath != "/usr/sbin/oz-daemon" {
+		s.getProcInfo()
+		if s.myProcInfo.ExePath != "/usr/sbin/oz-daemon" {
 			// denied!
-			log.Printf("ALERT/tor: pre auth socket was connected to by a app other than the oz-daemon")
+			log.Errorf("pre auth socket was connected to by a app other than the oz-daemon")
 			return false
 		}
 	}
@@ -401,10 +417,7 @@ func (s *ProxySession) allowConnection() bool {
 
 func (s *ProxySession) sessionWorker() {
 	defer s.appConn.Close()
-	var err error
-
-	clientAddr := s.appConn.RemoteAddr()
-	log.Printf("INFO/tor: New ctrl connection from: %s", clientAddr)
+	var err error = nil
 
 	if allow := s.allowConnection(); !allow {
 		_, err = s.appConnWrite(false, []byte("510 Tor Control proxy connection denied.\r\n"))
@@ -417,14 +430,14 @@ func (s *ProxySession) sessionWorker() {
 	// Authenticate with the real control port
 	err = s.initTorControl()
 	if err != nil {
-		log.Printf("RoflcopTor: Failed to authenticate with the tor control port: %s\n", err)
+		log.Errorf("Failed to authenticate with the tor control port: %s\n", err)
 		return
 	}
 	defer s.torConn.Close()
 
 	// Handle all of the allowed commands till the client authenticates.
 	if err := s.processPreAuth(); err != nil {
-		log.Printf("ERR/tor: [PreAuth]: %s", err)
+		log.Errorf("[PreAuth]: %s", err)
 		return
 	}
 
@@ -436,10 +449,11 @@ func (s *ProxySession) sessionWorker() {
 	s.Wait()
 
 	if len(s.errChan) > 0 {
-		err := <-s.errChan
-		log.Printf("INFO/tor: Closed client connection from: %s: %v", clientAddr, err)
-	} else {
-		log.Printf("INFO/tor: Closed client connection from: %v", clientAddr)
+		err = <-s.errChan
+	}
+	log.Noticef("Closed client connection from: %s:%s", s.appConn.LocalAddr().Network(), s.appConn.LocalAddr().String())
+	if err != nil {
+		log.Notice(err)
 	}
 }
 
@@ -449,6 +463,7 @@ func (s *ProxySession) sessionWorker() {
 // If watch-mode is enabled we pass the message through.
 func (s *ProxySession) proxyFilterTorToApp() {
 	defer s.Done()
+	appName := fmt.Sprintf("[%s]", s.myProcInfo.ExePath)
 
 	rd := bufio.NewReader(s.torConn)
 	for {
@@ -459,7 +474,7 @@ func (s *ProxySession) proxyFilterTorToApp() {
 		}
 		lineStr := strings.TrimSpace(string(line))
 		if s.watch && s.policy == nil {
-			log.Printf("watch-mode: A<-T: [%s]\n", lineStr)
+			log.Infof("watch-mode: %s A<-T: [%s]\n", appName, lineStr)
 			_, err = s.appConnWrite(true, line)
 		} else {
 			outputMessage := s.serverSieve.Filter(lineStr)
@@ -486,6 +501,8 @@ func (s *ProxySession) proxyFilterTorToApp() {
 // If watch-mode is enabled we pipeline messages without filtration.
 func (s *ProxySession) proxyFilterAppToTor() {
 	defer s.Done()
+	appName := fmt.Sprintf("[%s]", s.myProcInfo.ExePath)
+
 	for {
 		cmd, splitCmd, raw, err := s.appConnReadLine()
 		cmdLine := strings.TrimSpace(string(raw))
@@ -495,7 +512,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 		}
 
 		if s.watch && s.policy == nil {
-			log.Printf("watch-mode: A->T: [%s]\n", cmdLine)
+			log.Infof("watch-mode: %s A->T: [%s]\n", appName, cmdLine)
 			_, err = s.torConn.Write([]byte(raw))
 		} else {
 			if cmd == cmdProtocolInfo {
@@ -519,14 +536,14 @@ func (s *ProxySession) proxyFilterAppToTor() {
 					ok := s.shouldAllowOnion(cmdLine)
 					if !ok {
 						_, err = s.appConnWrite(false, []byte("510 Tor Control proxy ADD_ONION denied.\r\n"))
-						log.Printf("Denied A->T: [%s]\n", cmdLine)
-						log.Print("Attempt to use ADD_ONION with a control port as target.")
+						log.Noticef("Denied A->T: [%s]\n", cmdLine)
+						log.Notice("Attempt to use ADD_ONION with a control port as target.")
 						if err != nil {
 							s.errChan <- err
 						}
 						continue
 					} else {
-						log.Println("allowed ADD_ONION with ", cmdLine)
+						log.Noticef("allowed ADD_ONION with %s", cmdLine)
 					}
 				}
 				// send command to tor

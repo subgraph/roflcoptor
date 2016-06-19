@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"testing"
 	"time"
@@ -12,7 +11,7 @@ import (
 
 func echoConnection(conn net.Conn) error {
 	if _, err := io.Copy(conn, conn); err != nil {
-		log.Println(err.Error())
+		fmt.Println(err.Error())
 		return err
 	}
 	return nil
@@ -34,12 +33,12 @@ func TestMortalService(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			defer func() {
-				log.Printf("Quiting client #%d", id)
+				fmt.Printf("Quiting client #%d", id)
 			}()
 
 			conn, err := net.Dial("tcp", "127.0.0.1:5388")
 			if err != nil {
-				log.Println(err.Error())
+				fmt.Println(err.Error())
 				return
 			}
 			defer conn.Close()
@@ -48,10 +47,10 @@ func TestMortalService(t *testing.T) {
 				fmt.Fprintf(conn, "client #%d, count %d\n", id, i)
 				res, err := bufio.NewReader(conn).ReadString('\n')
 				if err != nil {
-					log.Println(err.Error())
+					fmt.Println(err.Error())
 					return
 				}
-				log.Printf("Received: %s", res)
+				fmt.Printf("Received: %s", res)
 				time.Sleep(100 * time.Millisecond)
 			}
 		}(i)

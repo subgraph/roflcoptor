@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"regexp"
@@ -143,10 +142,10 @@ func (p *PolicyList) LoadFilters(directoryPath string) error {
 			if strings.HasSuffix(f.Name(), ".json") {
 				ff, err := p.LoadFilterFile(name)
 				if err != nil || ff == nil {
-					log.Printf("error loading '%s': %v", f.Name(), err)
+					log.Noticef("error loading '%s': %v", f.Name(), err)
 					continue
 				}
-				log.Printf("Loaded filter for: %s (%d)\n", ff.ExecPath, ff.UserID)
+				log.Noticef("Loaded filter for: %s (%d)\n", ff.ExecPath, ff.UserID)
 				lf = append([]*SievePolicyJSONConfig(lf), ff)
 			}
 		}
