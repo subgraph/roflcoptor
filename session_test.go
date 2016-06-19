@@ -111,17 +111,16 @@ func setupFakeProxyAndTorService(proxyNet, proxyAddress string, procInfo procsni
 		},
 	}
 	config := RoflcoptorConfig{
-		LogFile:           "-",
-		FiltersPath:       "./filters",
-		Listeners:         listeners,
-		TorControlNet:     "unix",
-		TorControlAddress: "test_tor_socket",
+		ProcSnitchSocketFile: "-",
+		FiltersPath:          "./filters",
+		Listeners:            listeners,
+		TorControlNet:        "unix",
+		TorControlAddress:    "test_tor_socket",
 	}
 	fakeTorService := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
 	fakeTorService.Start()
 	watch := false
-	proxyListener := NewProxyListener(&config, watch)
-	proxyListener.procInfo = procInfo
+	proxyListener := NewProxyListener(&config, watch, procInfo)
 	proxyListener.StartListeners()
 	fmt.Println("started listeners for testing")
 	return fakeTorService, proxyListener
@@ -316,19 +315,16 @@ func TestProxyListenerWatchModeSession(t *testing.T) {
 		},
 	}
 	config := RoflcoptorConfig{
-		LogFile:           "-",
-		FiltersPath:       "./filters",
-		Listeners:         listeners,
-		TorControlNet:     "unix",
-		TorControlAddress: "test_tor_socket",
+		ProcSnitchSocketFile: "-",
+		FiltersPath:          "./filters",
+		Listeners:            listeners,
+		TorControlNet:        "unix",
+		TorControlAddress:    "test_tor_socket",
 	}
 	fakeTorService := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
 	fakeTorService.Start()
 
 	watch := true
-	proxyService := NewProxyListener(&config, watch)
-	defer fakeTorService.Stop()
-
 	ricochetProcInfo := procsnitch.Info{
 		UID:       1,
 		Pid:       1,
@@ -336,7 +332,10 @@ func TestProxyListenerWatchModeSession(t *testing.T) {
 		ExePath:   "/usr/local/bin/ricochet",
 		CmdLine:   "testing_cmd_line",
 	}
-	proxyService.procInfo = NewMockProcInfo(&ricochetProcInfo)
+	procInfo := NewMockProcInfo(&ricochetProcInfo)
+	proxyService := NewProxyListener(&config, watch, procInfo)
+	defer fakeTorService.Stop()
+
 	proxyService.StartListeners()
 	defer proxyService.StopListeners()
 
@@ -429,11 +428,11 @@ func TestNoProtocolInfoTorControlPort(t *testing.T) {
 		},
 	}
 	config := RoflcoptorConfig{
-		LogFile:           "-",
-		FiltersPath:       "./filters",
-		Listeners:         listeners,
-		TorControlNet:     "unix",
-		TorControlAddress: "test_tor_socket",
+		ProcSnitchSocketFile: "-",
+		FiltersPath:          "./filters",
+		Listeners:            listeners,
+		TorControlNet:        "unix",
+		TorControlAddress:    "test_tor_socket",
 	}
 	fakeTorService := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
 	fakeTorService.hasProtocolInfo = false
@@ -469,11 +468,11 @@ func TestNoAuthenticateTorControlPort(t *testing.T) {
 		},
 	}
 	config := RoflcoptorConfig{
-		LogFile:           "-",
-		FiltersPath:       "./filters",
-		Listeners:         listeners,
-		TorControlNet:     "unix",
-		TorControlAddress: "test_tor_socket",
+		ProcSnitchSocketFile: "-",
+		FiltersPath:          "./filters",
+		Listeners:            listeners,
+		TorControlNet:        "unix",
+		TorControlAddress:    "test_tor_socket",
 	}
 	fakeTorService := NewAccumulatingListener(config.TorControlNet, config.TorControlAddress)
 	fakeTorService.hasAuthenticate = false

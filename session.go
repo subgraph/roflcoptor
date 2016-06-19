@@ -46,11 +46,11 @@ type ProxyListener struct {
 
 // NewProxyListener creates a new ProxyListener given
 // a configuration structure.
-func NewProxyListener(cfg *RoflcoptorConfig, watch bool) *ProxyListener {
+func NewProxyListener(cfg *RoflcoptorConfig, watch bool, procInfo procsnitch.ProcInfo) *ProxyListener {
 	p := ProxyListener{
 		cfg:        cfg,
 		watch:      watch,
-		procInfo:   procsnitch.SystemProcInfo{},
+		procInfo:   procInfo,
 		policyList: NewPolicyList(),
 	}
 	return &p
