@@ -6,5 +6,4 @@ After=tor.service
 Type=simple
 User=root
 Group=debian-tor
-WorkingDirectory=/var/log/tor
-ExecStart=/home/user/gopath/bin/roflcoptor -config /home/user/code/roflcoptor/roflcoptor_testing_config.json
+ExecStart=/usr/local/sbin/roflcoptor -config /etc/roflcoptor/roflcoptor_config.json

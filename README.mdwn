@@ -63,7 +63,6 @@ The json configuration file, /etc/roflcoptor/roflcoptor_config.json should look 
 
 ```
 {
-    "LogFile" : "-",
     "FiltersPath" : "/etc/roflcoptor/filters",
     "TorControlNet" : "unix",
     "TorControlAddress" : "/var/run/tor/control",

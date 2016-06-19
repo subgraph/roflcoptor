@@ -1,16 +1,15 @@
 {
-    "LogFile" : "-",
-    "FiltersPath" : "./filters",
+    "FiltersPath" : "/etc/roflcoptor/filters",
     "TorControlNet" : "unix",
     "TorControlAddress" : "/var/run/tor/control",
     "Listeners" : [
 	{
 	    "Net" : "unix",
-	    "Address" : "/home/user/roflcoptor.socket"
+	    "Address" : "/tmp/roflcoptor.socket"
 	},
 	{
 	    "Net" : "tcp",
-	    "Address" : "127.0.0.1:8851"
+	    "Address" : "127.0.0.1:9051"
 	}
     ]
 }
