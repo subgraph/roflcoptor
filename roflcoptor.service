@@ -4,6 +4,6 @@ After=tor.service
 
 [Service]
 Type=simple
-User=root
-Group=debian-tor
-ExecStart=/usr/local/sbin/roflcoptor -config /etc/roflcoptor/roflcoptor_config.json
+User=roflcoptor
+Group=roflcoptor
+ExecStart=/home/user/gopath/bin/roflcoptor -watch -config /etc/roflcoptor/roflcoptor_config.json

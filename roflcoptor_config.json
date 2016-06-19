@@ -1,11 +1,12 @@
 {
+    "ProcSnitchSocketFile" : "/var/run/procsnitchd/rpc.socket",
     "FiltersPath" : "/etc/roflcoptor/filters",
     "TorControlNet" : "unix",
     "TorControlAddress" : "/var/run/tor/control",
     "Listeners" : [
 	{
 	    "Net" : "unix",
-	    "Address" : "/tmp/roflcoptor.socket"
+	    "Address" : "/var/run/roflcoptor/roflcoptor.socket"
 	},
 	{
 	    "Net" : "tcp",

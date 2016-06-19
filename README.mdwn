@@ -52,24 +52,45 @@ After=tor.service
 
 [Service]
 Type=simple
-User=root
-Group=debian-tor
+User=roflcoptor
+Group=roflcoptor
 WorkingDirectory=/var/log/tor
 ExecStart=/usr/local/bin/roflcoptor -config /etc/roflcoptor/roflcoptor_config.json
 ```
 
-Create the directory, /etc/roflcoptor, and /etc/roflcoptor/filters for the filter rule files.
+Run roflcoptor as the roflcoptor user and group. However you must be able to read and write to
+the tor and procsnitch UNIX domain sockets. Therefore the roflcoptor user must be in the debian-tor
+and procsnitch groups. Your /etc/group file should contain entries like these:
+
+```
+debian-tor:x:111:roflcoptor
+roflcoptor:x:1001:
+procsnitch:x:1002:roflcoptor
+```
+
+Create and chown the roflcoptor related directories:
+
+```
+mkdir /etc/roflcoptor
+mkdir /etc/roflcoptor/filters
+mkdir /var/run/roflcoptor
+chown roflcoptor:roflcoptor /etc/roflcoptor
+chown roflcoptor:roflcoptor /etc/roflcoptor/filters
+chown roflcoptor:roflcoptor /var/run/roflcoptor
+```
+
 The json configuration file, /etc/roflcoptor/roflcoptor_config.json should look like this:
 
 ```
 {
+    "ProcSnitchSocketFile" : "/var/run/procsnitchd/rpc.socket",
     "FiltersPath" : "/etc/roflcoptor/filters",
     "TorControlNet" : "unix",
     "TorControlAddress" : "/var/run/tor/control",
     "Listeners" : [
 	{
 	    "Net" : "unix",
-	    "Address" : "/tmp/roflcoptor.socket"
+	    "Address" : "/var/run/roflcoptor/roflcoptor.socket"
 	},
 	{
 	    "Net" : "tcp",
@@ -79,8 +100,11 @@ The json configuration file, /etc/roflcoptor/roflcoptor_config.json should look 
 }
 ```
 
-As you can see the filter rules directory is specified in the above config file.
-The filters in this repo are to be installed in the above specified filters directory, /etc/roflcoptor/filters.
+
+The above mentioned ``ProcSnitchSocketFile`` refers to the UNIX domain socket which the procsnitch daemon is listening.
+Procsnitch daemon is essentially a privilege seperation component of roflcoptor.
+
+Please see https://github.com/subgraph/procsnitchd
 
 
 # Acknowledgements
