@@ -34,14 +34,27 @@ Normally watch-mode is only used when creating new filter rule sets.
 
 # Configuration
 
-Configure your /etc/tor/torrc with a control port listening on a UNIX domain socket:
+In this configuration example tor's control port is NOT set to TCP port 9051, but instead
+listens on a UNIX domain socket which only the debian-tor group has read/write access to,
+therefore the ``roflcoptor`` user must be in the debian-tor group. Being a member of the
+``procsnitch`` group ensures we can read it's UNIX domain socket as well. Your ``/etc/group``
+file should contain entries like these:
+
+```
+debian-tor:x:111:roflcoptor
+roflcoptor:x:1001:
+procsnitch:x:1002:roflcoptor
+```
+
+Here we also turn off ``cookie authentication`` because filesystem permissions are sufficient
+for limiting access. Configure your ``/etc/tor/torrc`` like this:
 
 ```
 ControlPort unix:/var/run/tor/control.socket GroupWritable
 CookieAuthentication 0
 ```
 
-You have the option to use systemd to manage the starting/stopping of roflcoptor.
+Run roflcoptor as the ``roflcoptor`` user and group. Here's my systemd example.
 Place the systemd unit file for roflcoptor daemon in /etc/systemd/system/roflcoptor.
 It should look something like this:
 
@@ -53,30 +66,21 @@ After=tor.service
 [Service]
 Type=simple
 User=roflcoptor
-Group=roflcoptor
-WorkingDirectory=/var/log/tor
-ExecStart=/usr/local/bin/roflcoptor -config /etc/roflcoptor/roflcoptor_config.json
+ExecStart=/usr/local/bin/roflcoptor -watch -config /etc/roflcoptor/roflcoptor_config.json
 ```
 
-Run roflcoptor as the roflcoptor user and group. However you must be able to read and write to
-the tor and procsnitch UNIX domain sockets. Therefore the roflcoptor user must be in the debian-tor
-and procsnitch groups. Your /etc/group file should contain entries like these:
+NOTE: The ``-watch`` flag was passed to roflcoptor so that applications which do not have a policy yet such as
+Oz sandboxed applications will operate in watch-mode where the policy is pass-thru and all other applications
+will have their filter policy applied. We must resolve ticket https://github.com/subgraph/oz/issues/37
+and implement the Oz UNIX domain socket proxy!
 
-```
-debian-tor:x:111:roflcoptor
-roflcoptor:x:1001:
-procsnitch:x:1002:roflcoptor
-```
+
 
 Create and chown the roflcoptor related directories:
 
 ```
-mkdir /etc/roflcoptor
-mkdir /etc/roflcoptor/filters
-mkdir /var/run/roflcoptor
-chown roflcoptor:roflcoptor /etc/roflcoptor
-chown roflcoptor:roflcoptor /etc/roflcoptor/filters
-chown roflcoptor:roflcoptor /var/run/roflcoptor
+mkdir -p /etc/roflcoptor/filters /var/run/roflcoptor
+chown -R roflcoptor:roflcoptor /etc/roflcoptor /var/run/roflcoptor
 ```
 
 The json configuration file, /etc/roflcoptor/roflcoptor_config.json should look like this:

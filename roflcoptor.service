@@ -5,5 +5,4 @@ After=tor.service
 [Service]
 Type=simple
 User=roflcoptor
-Group=roflcoptor
 ExecStart=/home/user/gopath/bin/roflcoptor -watch -config /etc/roflcoptor/roflcoptor_config.json
