@@ -1,0 +1,18 @@
+{
+    "exec-path": "/usr/bin/python2.7",
+    "client-allowed" : ["SETEVENTS SIGNAL CONF_CHANGED",
+			"GETCONF __owningcontrollerprocess",
+			"GETINFO version",
+			"SETEVENTS SIGNAL HS_DESC CONF_CHANGED"
+		       ],
+    "client-allowed-prefixes" : ["ADD_ONION", "DEL_ONION"],
+    "client-replacements" : {},
+    "client-replacement-prefixes" : {},
+    "server-allowed" : ["250 OK",
+		       "250 __OwningControllerProcess"],
+    "server-allowed-prefixes" : ["250-ServiceID=", "250-VERSION","250-version",
+				 "250-PrivateKey=", "650 STREAM",
+				"650 HS_DESC"],
+    "server-replacement-prefixes" : {}
+}
+
