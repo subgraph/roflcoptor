@@ -478,7 +478,9 @@ func (s *ProxySession) proxyFilterTorToApp() {
 			_, err = s.appConnWrite(true, line)
 		} else {
 			outputMessage := s.serverSieve.Filter(lineStr)
-			if outputMessage != "" {
+			if outputMessage == "" {
+				log.Errorf("filter policy DENY: %s A<-T: [%s]\n", appName, lineStr)
+			} else {
 				_, err = s.appConnWrite(true, []byte(outputMessage+"\r\n"))
 			}
 		}
@@ -526,6 +528,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 
 			outputMessage := s.clientSieve.Filter(cmdLine)
 			if outputMessage == "" {
+				log.Errorf("filter policy DENY: %s A->T: [%s]\n", appName, cmdLine)
 				_, err = s.appConnWrite(false, []byte("250 Tor Control command proxy denied: filtration policy.\r\n"))
 				continue
 			} else {
@@ -536,8 +539,8 @@ func (s *ProxySession) proxyFilterAppToTor() {
 					ok := s.shouldAllowOnion(cmdLine)
 					if !ok {
 						_, err = s.appConnWrite(false, []byte("510 Tor Control proxy ADD_ONION denied.\r\n"))
-						log.Noticef("Denied A->T: [%s]\n", cmdLine)
-						log.Notice("Attempt to use ADD_ONION with a control port as target.")
+						log.Errorf("Denied A->T: [%s]\n", cmdLine)
+						log.Error("Attempt to use ADD_ONION with a control port as target.")
 						if err != nil {
 							s.errChan <- err
 						}
