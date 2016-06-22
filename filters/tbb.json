@@ -1,15 +1,16 @@
 {
     "AuthNetAddr" : "tcp",
-    "AuthAddr" : "127.0.0.1:6651",
-    "exec-path": "/srv/oz/rootfs/home/user/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/firefox",
+    "AuthAddr" : "/var/run/roflcoptor/tbb.socket",
+    "exec-path": "tbb",
     "client-allowed" : ["SIGNAL NEWNYM","GETINFO net/listeners/socks", "GETCONF UseBridges", "GETCONF Bridge",
 			"GETCONF Socks4Proxy", "GETCONF Socks5Proxy", "GETCONF HTTPSProxy",
 		       "GETCONF ReachableAddresses"],
     "client-allowed-prefixes" : [],
     "client-replacements" : {},
     "client-replacement-prefixes" : {},
-    "server-allowed" : ["250 OK", "250-net/listeners/socks=\"127.0.0.1:9050\"", "250 UseBridges=0",
+    "server-allowed" : ["250 OK",
+			"250 UseBridges=0",
 		       "250 ReachableAddresses"],
-    "server-allowed-prefixes" : ["650 STREAM"],
+    "server-allowed-prefixes" : ["650 STREAM", "250-net/listeners/socks="],
     "server-replacement-prefixes" : {}
 }
