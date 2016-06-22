@@ -88,6 +88,7 @@ func (p *ProxyListener) StartListeners() {
 		return nil
 	}
 	for _, location := range p.cfg.Listeners {
+		log.Noticef("unauthenticated listener starting on %s:%s", location.Net, location.Address)
 		p.services = append(p.services, NewMortalService(location.Net, location.Address, handleNewConnection))
 		p.services[len(p.services)-1].Start()
 	}
@@ -131,6 +132,7 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 
 			return nil
 		}
+		log.Noticef("%s policy listener starting on %s:%s", policy.ExecPath, location.Net, location.Address)
 		p.authedServices = append(p.authedServices, NewMortalService(location.Net, location.Address, handleNewConnection))
 		p.authedServices[len(p.authedServices)-1].Start()
 	}
@@ -479,7 +481,7 @@ func (s *ProxySession) proxyFilterTorToApp() {
 		} else {
 			outputMessage := s.serverSieve.Filter(lineStr)
 			if outputMessage == "" {
-				log.Errorf("filter policy DENY: %s A<-T: [%s]\n", appName, lineStr)
+				log.Errorf("filter policy for %s DENY: %s A<-T: [%s]\n", s.policy.ExecPath, appName, lineStr)
 			} else {
 				_, err = s.appConnWrite(true, []byte(outputMessage+"\r\n"))
 			}
@@ -528,7 +530,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 
 			outputMessage := s.clientSieve.Filter(cmdLine)
 			if outputMessage == "" {
-				log.Errorf("filter policy DENY: %s A->T: [%s]\n", appName, cmdLine)
+				log.Errorf("filter policy for %s DENY: %s A->T: [%s]\n", s.policy.ExecPath, appName, cmdLine)
 				_, err = s.appConnWrite(false, []byte("250 Tor Control command proxy denied: filtration policy.\r\n"))
 				continue
 			} else {
