@@ -1,5 +1,5 @@
 {
-    "AuthNetAddr" : "tcp",
+    "AuthNetAddr" : "unix",
     "AuthAddr" : "/var/run/roflcoptor/tbb.socket",
     "exec-path": "tbb",
     "client-allowed" : ["SIGNAL NEWNYM","GETINFO net/listeners/socks", "GETCONF UseBridges", "GETCONF Bridge",
