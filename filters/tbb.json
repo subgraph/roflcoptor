@@ -4,7 +4,7 @@
     "exec-path": "tbb",
     "client-allowed" : ["SIGNAL NEWNYM","GETINFO net/listeners/socks", "GETCONF UseBridges", "GETCONF Bridge",
 			"GETCONF Socks4Proxy", "GETCONF Socks5Proxy", "GETCONF HTTPSProxy",
-		       "GETCONF ReachableAddresses"],
+		       "GETCONF ReachableAddresses", "setevents stream"],
     "client-allowed-prefixes" : [],
     "client-replacements" : {},
     "client-replacement-prefixes" : {},
