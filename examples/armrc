@@ -1,3 +1,5 @@
+# this is an example armrc which should work with the included arm policy
+
 features.panels.show.log false
 features.panels.show.connection false
 features.panels.show.config false
