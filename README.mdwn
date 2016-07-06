@@ -1,14 +1,14 @@
 # ROFLCopTor
 
-ROFLCopTor aims to be an exhaustive Tor control port filter daemon written in golang.
+ROFLCopTor aims to be a comprehensive Tor control port filter daemon written in golang.
 
 # Introduction
 
 The Tor control port exposes powerful functionality, much more authority than most
 applications need when they talk to the Tor control port. In accordance with the
 principal of least authority each software module would ideally have authority
-over only the resources needed to perform it's tasks. Here in the context of ROFLCopTor,
-we seek to illiminate excess authority from applications which utilize the Tor control port,
+over only the resources needed to perform its tasks. Here in the context of ROFLCopTor,
+we seek to eliminate excess authority from applications which utilize the Tor control port,
 therefore they will not be in the debian-tor group or otherwise have access to the tor
 control port UNIX domain socket or TCP listener. The only available access to the tor control
 port being via ROFLCoptor which exposes a TCP listener and or a UNIX domain socket. Applications
@@ -34,22 +34,41 @@ Normally watch-mode is only used when creating new filter rule sets.
 
 # Configuration
 
+Until a debian package does this automatically, here are the steps to manually set things up.
+
+First, create a new user, and put it in the procsnitch group.
+
+```
+adduser --system --group --disabled-password --disabled-login --home /etc/roflcoptor/ --no-create-home --quiet roflcoptor
+usermod -G procsnitch,debian-tor roflcoptor
+```
+
 In this configuration example tor's control port is NOT set to TCP port 9051, but instead
 listens on a UNIX domain socket which only the debian-tor group has read/write access to,
 therefore the ``roflcoptor`` user must be in the debian-tor group. Being a member of the
-``procsnitch`` group ensures we can read it's UNIX domain socket as well. Your ``/etc/group``
-file should contain entries like these:
+``procsnitch`` group ensures we can read its UNIX domain socket as well. After
+running the above commands, `grep roflcoptor /etc/group` should look like this:
 
 ```
 debian-tor:x:111:roflcoptor
-roflcoptor:x:1001:
-procsnitch:x:1002:roflcoptor
+procsnitch:x:999:roflcoptor
+roflcoptor:x:119:
+```
+
+Create directories and copy files from source repo:
+```
+mkdir /var/run/roflcoptor
+chown roflcoptor:roflcoptor /var/run/roflcoptor
+mkdir -p /etc/roflcoptor/filters
+cp roflcoptor_config.json /etc/roflcoptor
+cp filters/*json /etc/roflcoptor/filters
 ```
 
 Here we also turn off ``cookie authentication`` because filesystem permissions are sufficient
 for limiting access. Configure your ``/etc/tor/torrc`` like this:
 
 ```
+# ControlPort 9051 # disable this
 ControlPort unix:/var/run/tor/control.socket GroupWritable
 CookieAuthentication 0
 ```
