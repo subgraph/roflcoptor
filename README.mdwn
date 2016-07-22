@@ -85,6 +85,9 @@ After=tor.service
 [Service]
 Type=simple
 User=roflcoptor
+PermissionsStartOnly=true
+ExecStartPre=-/bin/mkdir /var/run/roflcoptor
+ExecStartPre=/bin/chown roflcoptor /var/run/roflcoptor
 ExecStart=/usr/local/bin/roflcoptor -watch -config /etc/roflcoptor/roflcoptor_config.json
 ```
 
