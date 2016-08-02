@@ -1,0 +1,18 @@
+{
+    "AuthNetAddr" : "unix",
+    "AuthAddr" : "/var/run/roflcoptor/roflcoptor.socket",
+    "exec-path": "/usr/sbin/oz-daemon",
+    "client-allowed" : ["setevents stream", "getinfo circuit-status", "SIGNAL NEWNYM", "GETINFO net/listeners/socks", "GETCONF UseBridges", "GETCONF Bridge",
+			"GETCONF Socks4Proxy", "GETCONF Socks5Proxy", "GETCONF HTTPSProxy", "getconf bridge", 
+		       "GETCONF ReachableAddresses"],
+    "client-allowed-prefixes" : ["getinfo ns/id/", "getinfo ip-to-country/"],
+    "client-replacements" : {},
+    "client-replacement-prefixes" : {},
+    "server-scrub-regexes" : {},
+    "server-allowed" : ["250 OK",
+			"250 UseBridges=0",
+		       "250 ReachableAddresses", "250 Socks4Proxy", "."],
+    "server-allowed-prefixes" : ["650 STREAM", "250-net/listeners/socks=", "250+circuit-status=", "w ", "s ", "250 Bridge" , "250+ns/id/", "r ", "250-ip-to-country/"],
+    "server-regexes": ["^\\d+ BUILT.*", "^\\d+ EXTENDED.*"],
+    "server-replacement-prefixes" : {}
+}
