@@ -10,6 +10,12 @@ import (
 func TestFilter(t *testing.T) {
 	allowed := []string{"meow", "dow"}
 	allowedPrefixes := []string{"fu", "do"}
+	regexes := []string{
+		"^\\d+ BUILD hello",
+	}
+	regexreplacements := map[string]string{
+		"sensitive data \\d+ " : "ok data 000 ",
+	}
 	replacements := map[string]string{
 		"123":     "456",
 		"how now": "brown cow",
@@ -17,7 +23,7 @@ func TestFilter(t *testing.T) {
 	replacementPrefixes := map[string]string{
 		"the quick brown": "but not the burning of books",
 	}
-	sieve := NewSieve(allowed, allowedPrefixes, replacements, replacementPrefixes)
+	sieve := NewSieve(allowed, allowedPrefixes, regexes, regexreplacements, replacements, replacementPrefixes)
 
 	tests := []struct {
 		in   string
@@ -67,6 +73,14 @@ func TestFilter(t *testing.T) {
 			"the quick car broke down",
 			"",
 		},
+		{
+			"12345 BUILD this is a test",
+			"12345 BUILD this s a test",
+		},
+		{
+			"this is sensitive data 12345 now i am done",
+			"this is ok data 000 now i am done",
+		},
 	}
 
 	for _, test := range tests {
@@ -110,6 +124,7 @@ func TestLoadFilters(t *testing.T) {
     "server-allowed" : ["250 OK", "250-net/listeners/socks=\"127.0.0.1:9050\"", "250 UseBridges=0",
 		       "250 ReachableAddresses"],
     "server-allowed-prefixes" : ["650 STREAM"],
+    "server-regexes": ["^\\d+ BUILT.*", "^\\d+ EXTENDED.*"],
     "server-replacement-prefixes" : {}
 }`)
 

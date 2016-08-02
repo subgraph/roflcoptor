@@ -19,19 +19,23 @@ type SievePolicyJSONConfig struct {
 
 	ClientAllowed             []string          `json:"client-allowed"`
 	ClientAllowedPrefixes     []string          `json:"client-allowed-prefixes"`
+	ClientRegexes             []string          `json:"client-regex"`
+	ClientScrubRegexes        map[string]string `json:"client-scrub-regexes"` // not likely to be used
 	ClientReplacements        map[string]string `json:"client-replacements"`
 	ClientReplacementPrefixes map[string]string `json:"client-replacement-prefixes"`
 
 	ServerAllowed             []string          `json:"server-allowed"`
 	ServerAllowedPrefixes     []string          `json:"server-allowed-prefixes"`
+	ServerRegexes             []string          `json:"server-regexes"`
+	ServerScrubRegexes        map[string]string `json:"server-scrub-regexes"`
 	ServerReplacements        map[string]string `json:"server-replacements"`
 	ServerReplacementPrefixes map[string]string `json:"server-replacement-prefixes"`
 }
 
 // GetSieves -> client sieve, server sieve
 func (p *SievePolicyJSONConfig) GetSieves() (*Sieve, *Sieve) {
-	clientSieve := NewSieve(p.ClientAllowed, p.ClientAllowedPrefixes, p.ClientReplacements, p.ClientReplacementPrefixes)
-	serverSieve := NewSieve(p.ServerAllowed, p.ServerAllowedPrefixes, p.ServerReplacements, p.ServerReplacementPrefixes)
+	clientSieve := NewSieve(p.ClientAllowed, p.ClientAllowedPrefixes, p.ClientRegexes, p.ClientScrubRegexes, p.ClientReplacements, p.ClientReplacementPrefixes)
+	serverSieve := NewSieve(p.ServerAllowed, p.ServerAllowedPrefixes, p.ServerRegexes, p.ServerScrubRegexes, p.ServerReplacements, p.ServerReplacementPrefixes)
 	return clientSieve, serverSieve
 }
 
@@ -39,15 +43,19 @@ func (p *SievePolicyJSONConfig) GetSieves() (*Sieve, *Sieve) {
 type Sieve struct {
 	Allowed             []string
 	AllowedPrefixes     []string
+	Regexes             []string
+	ScrubRegexes        map[string]string
 	Replacements        map[string]string
 	ReplacementPrefixes map[string]string
 }
 
 // NewSieve creates a new Sieve
-func NewSieve(allowed, allowedPrefixes []string, replacements, replacementPrefixes map[string]string) *Sieve {
+func NewSieve(allowed, allowedPrefixes, regexes []string, scrubs, replacements, replacementPrefixes map[string]string) *Sieve {
 	s := Sieve{
 		Allowed:             allowed,
 		AllowedPrefixes:     allowedPrefixes,
+		Regexes:             regexes,
+		ScrubRegexes:        scrubs,
 		Replacements:        replacements,
 		ReplacementPrefixes: replacementPrefixes,
 	}
@@ -70,7 +78,16 @@ func (s *Sieve) Filter(message string) string {
 		return replacement
 	}
 
+	scrubbed, ok := s.isScrubbed(message)
+	if ok {
+		return scrubbed
+	}
+
 	if s.isPrefixAllowed(message) {
+		return message
+	}
+
+	if s.isMatchedRegex(message) {
 		return message
 	}
 
@@ -98,9 +115,37 @@ func (s *Sieve) hasReplacementCommand(message string) (string, bool) {
 	return message, false
 }
 
+func (s *Sieve) isScrubbed(message string) (string, bool) {
+	/* Multiple may match. Return replacement for first match. */
+	for regexstr, replacement := range s.ScrubRegexes {
+		reg, err := regexp.Compile(regexstr)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if reg.MatchString(message) {
+			scrubbed := reg.ReplaceAllString(message, replacement)
+			return scrubbed, true
+		}
+	}
+	return message, false
+}
+
 func (s *Sieve) isPrefixAllowed(message string) bool {
 	for i := 0; i < len(s.AllowedPrefixes); i++ {
 		if strings.HasPrefix(message, s.AllowedPrefixes[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Sieve) isMatchedRegex(message string) bool {
+	for i := 0; i < len(s.Regexes); i++ {
+		reg, err := regexp.Compile(s.Regexes[i])
+		if err != nil {
+			log.Fatal(err)
+		}
+		if reg.MatchString(message) {
 			return true
 		}
 	}
