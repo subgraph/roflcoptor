@@ -78,6 +78,10 @@ func TestFilter(t *testing.T) {
 			"",
 		},
 		{
+			"123456789 BUILD hello",
+			"123456789 BUILD hello",
+		},
+		{
 			"this is sensitive data 12345 now i am done",
 			"this is ok data 000 now i am done",
 		},
