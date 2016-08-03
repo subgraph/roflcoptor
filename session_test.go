@@ -223,7 +223,7 @@ func TestProxyAuthListenerSession(t *testing.T) {
 	defer proxyService.StopListeners()
 
 	var clientConn *bulb.Conn
-	clientConn, err = bulb.Dial("tcp", "127.0.0.1:6651")
+	clientConn, err = bulb.Dial(proxyNet, proxyAddress)
 	defer clientConn.Close()
 	if err != nil {
 		t.Errorf("Failed to connect to tor control port: %v", err)
@@ -231,12 +231,8 @@ func TestProxyAuthListenerSession(t *testing.T) {
 	}
 	clientConn.Debug(true)
 	err = clientConn.Authenticate("")
-	if err == nil {
-		t.Errorf("expected an authentication error")
-		t.Fail()
-	}
-	if fmt.Sprintf("%s", err) != "510 Unrecognized command: Tor Control proxy connection denied." {
-		t.Errorf("err string not match")
+	if err != nil {
+		t.Errorf("authentication error: %s", err)
 		t.Fail()
 	}
 }
