@@ -1,0 +1,3 @@
+roflcoptor_config.json /etc/roflcoptor/
+filters/gnome_shell.json /etc/roflcoptor/filters/
+filters/oz-daemon.json /etc/roflcoptor/filters/

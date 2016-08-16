@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+# script version: 1
+
+count=`egrep -c "^roflcoptor:" /etc/passwd`
+if [ $count -eq 0 ] ; then
+    echo "No roflcoptor user found: adding.."
+    adduser --system --group --disabled-password --disabled-login --home /etc/roflcoptor/ --no-create-home --quiet roflcoptor
+fi
+usermod -G procsnitch,debian-tor roflcoptor
+
+#DEBHELPER#
