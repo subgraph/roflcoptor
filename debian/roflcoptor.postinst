@@ -2,7 +2,7 @@
 set -e
 # script version: 1
 
-count=`egrep -c "^roflcoptor:" /etc/passwd`
+count=`egrep -c "^roflcoptor:" /etc/passwd || true`
 if [ $count -eq 0 ] ; then
     echo "No roflcoptor user found: adding.."
     adduser --system --group --disabled-password --disabled-login --home /etc/roflcoptor/ --no-create-home --quiet roflcoptor
