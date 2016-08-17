@@ -1,6 +1,7 @@
 [Unit]
 Description=roflcoptor - onion router control port filtration daemon
-After=procsnitchd.service
+After=procsnitchd.service tor.service
+Requires=procsnitchd.service tor.service
 
 [Service]
 Type=simple
@@ -11,4 +12,4 @@ ExecStartPre=/bin/chown roflcoptor /var/run/roflcoptor
 ExecStart=/usr/bin/roflcoptor -config /etc/roflcoptor/roflcoptor_config.json
 
 [Install]
-WantedBy=tor.service
+WantedBy=multi-user.target
