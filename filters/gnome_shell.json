@@ -4,8 +4,12 @@
     "client-allowed-prefixes" : [],
     "client-replacements" : {},
     "client-replacement-prefixes" : {},
-    "server-allowed" : ["250-status/bootstrap-phase=NOTICE BOOTSTRAP PROGRESS=100 TAG=done SUMMARY=\"Done\"",
-                        "250 OK"],
+    "server-regexes" : ["250-status/bootstrap-phase=NOTICE BOOTSTRAP PROGRESS=.*"],
+    "server-allowed" : ["250 OK"],
     "server-allowed-prefixes" : [],
     "server-replacement-prefixes" : {}
 }
+
+
+
+250-status/bootstrap-phase=NOTICE BOOTSTRAP PROGRESS=85 TAG=handshake_or SUMMARY="Finishing handshake with first hop"
