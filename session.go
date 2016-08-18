@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/subgraph/go-procsnitch"
+	"github.com/subgraph/procsnitchd/service"
 	"github.com/yawning/bulb"
 )
 
@@ -36,8 +37,8 @@ const (
 type ProxyListener struct {
 	cfg            *RoflcoptorConfig
 	watch          bool
-	services       []*MortalService
-	authedServices []*MortalService
+	services       []*service.MortalService
+	authedServices []*service.MortalService
 	onionDenyAddrs []AddrString
 	errChan        chan error
 	procInfo       procsnitch.ProcInfo
@@ -89,14 +90,14 @@ func (p *ProxyListener) StartListeners() {
 	}
 	for _, location := range p.cfg.Listeners {
 		log.Noticef("unauthenticated listener starting on %s:%s", location.Net, location.Address)
-		p.services = append(p.services, NewMortalService(location.Net, location.Address, handleNewConnection))
+		p.services = append(p.services, service.NewMortalService(location.Net, location.Address, handleNewConnection))
 		p.services[len(p.services)-1].Start()
 	}
 }
 
 // StopListeners stops all the listeners
 func (p *ProxyListener) StopListeners() {
-	stopServices := func(services []*MortalService) {
+	stopServices := func(services []*service.MortalService) {
 		for _, service := range services {
 			service.Stop()
 		}
@@ -133,7 +134,7 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 			return nil
 		}
 		log.Noticef("%s policy listener starting on %s:%s", policy.ExecPath, location.Net, location.Address)
-		p.authedServices = append(p.authedServices, NewMortalService(location.Net, location.Address, handleNewConnection))
+		p.authedServices = append(p.authedServices, service.NewMortalService(location.Net, location.Address, handleNewConnection))
 		p.authedServices[len(p.authedServices)-1].Start()
 	}
 }
