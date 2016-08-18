@@ -68,6 +68,7 @@ func NewProxyListener(cfg *RoflcoptorConfig, watch bool, procInfo procsnitch.Pro
 // by other means. All applications running from an Oz shell will appear to have
 // the same exec path of "/usr/sbin/oz-daemon"
 func (p *ProxyListener) StartListeners() {
+	var err error
 	p.policyList.LoadFilters(p.cfg.FiltersPath)
 	// compile a list of all control ports;
 	// we black list them from being the onion target address
@@ -91,7 +92,11 @@ func (p *ProxyListener) StartListeners() {
 	for _, location := range p.cfg.Listeners {
 		log.Noticef("unauthenticated listener starting on %s:%s", location.Net, location.Address)
 		p.services = append(p.services, service.NewMortalService(location.Net, location.Address, handleNewConnection))
-		p.services[len(p.services)-1].Start()
+		err = p.services[len(p.services)-1].Start()
+		if err != nil {
+			log.Criticalf("roflcoptor failed to start service listeners: %s", err)
+			return
+		}
 	}
 }
 
@@ -123,6 +128,7 @@ func (p *ProxyListener) compileOnionAddrBlacklist() {
 // InitAuthenticatedListeners runs each auth listener
 // in it's own goroutine.
 func (p *ProxyListener) initAuthenticatedListeners() {
+	var err error
 	locations := p.policyList.getAuthenticatedPolicyAddresses()
 	for location, policy := range locations {
 		handleNewConnection := func(conn net.Conn) error {
@@ -135,7 +141,11 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 		}
 		log.Noticef("%s policy listener starting on %s:%s", policy.ExecPath, location.Net, location.Address)
 		p.authedServices = append(p.authedServices, service.NewMortalService(location.Net, location.Address, handleNewConnection))
-		p.authedServices[len(p.authedServices)-1].Start()
+		err = p.authedServices[len(p.authedServices)-1].Start()
+		if err != nil {
+			log.Criticalf("roflcoptor failed to start service listeners: %s", err)
+			return
+		}
 	}
 }
 
