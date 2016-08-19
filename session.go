@@ -70,18 +70,17 @@ func NewProxyListener(cfg *RoflcoptorConfig, watch bool, procInfo procsnitch.Pro
 func (p *ProxyListener) StartListeners() {
 	var err error
 
+	log.Info("StartListeners")
+
 	err = p.policyList.LoadFilters(p.cfg.FiltersPath)
 	if err != nil {
+		log.Criticalf("failed to load filter policy: %s", err)
 		panic(fmt.Sprintf("failed to load filter policy: %s", err))
 	}
 
 	// compile a list of all control ports;
 	// we black list them from being the onion target address
 	p.compileOnionAddrBlacklist()
-
-	// Previously authenticated listeners can be any network type
-	// including UNIX domain sockets.
-	p.initAuthenticatedListeners()
 
 	// start the main listeners
 	handleNewConnection := func(conn net.Conn) error {
@@ -103,6 +102,10 @@ func (p *ProxyListener) StartListeners() {
 			return
 		}
 	}
+
+	// Previously authenticated listeners can be any network type
+	// including UNIX domain sockets.
+	p.initAuthenticatedListeners()
 }
 
 // StopListeners stops all the listeners
@@ -133,8 +136,13 @@ func (p *ProxyListener) compileOnionAddrBlacklist() {
 // InitAuthenticatedListeners runs each auth listener
 // in it's own goroutine.
 func (p *ProxyListener) initAuthenticatedListeners() {
-	var err error
-	locations := p.policyList.getAuthenticatedPolicyAddresses()
+
+	locations, err := p.policyList.getAuthenticatedPolicyAddresses()
+	if err != nil {
+		log.Criticalf("ProxyListener.initAuthenticatedListeners failure: %s", err)
+		panic(err)
+	}
+
 	for location, policy := range locations {
 		handleNewConnection := func(conn net.Conn) error {
 			log.Debugf("connection received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
@@ -148,7 +156,7 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 		p.authedServices = append(p.authedServices, service.NewMortalService(location.Net, location.Address, handleNewConnection))
 		err = p.authedServices[len(p.authedServices)-1].Start()
 		if err != nil {
-			log.Criticalf("roflcoptor failed to start service listeners: %s", err)
+			log.Criticalf("ProxyListener.initAuthenticatedListeners: roflcoptor failed to start service listeners: %s", err)
 			return
 		}
 	}

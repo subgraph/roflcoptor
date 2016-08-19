@@ -200,12 +200,14 @@ func (p *PolicyList) LoadFilters(directoryPath string) error {
 					log.Noticef("error loading '%s': %v", f.Name(), err)
 					continue
 				}
-				if p.ListenerExists(ff) {
-					return fmt.Errorf("listener already configured: %s:%s", ff.AuthNetAddr, ff.AuthAddr)
+				if ff.AuthNetAddr != "" {
+					if p.ListenerExists(ff) {
+						return fmt.Errorf("listener already configured: %s:%s", ff.AuthNetAddr, ff.AuthAddr)
+					}
 				}
-
 				log.Noticef("Loaded filter for: %s (%d)\n", ff.ExecPath, ff.UserID)
 				lf = append([]*SievePolicyJSONConfig(lf), ff)
+				p.loadedFilters = lf
 			}
 		}
 	}
@@ -257,10 +259,13 @@ func (p *PolicyList) getListenerAddresses() []AddrString {
 	return addrList
 }
 
-func (p *PolicyList) getAuthenticatedPolicyAddresses() map[AddrString]*SievePolicyJSONConfig {
+func (p *PolicyList) getAuthenticatedPolicyAddresses() (map[AddrString]*SievePolicyJSONConfig, error) {
 	listenerMap := make(map[AddrString]*SievePolicyJSONConfig)
 	for _, filter := range p.loadedFilters {
 		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
+			if p.ListenerExists(filter) {
+				return listenerMap, fmt.Errorf("Operator failure: listener already exists: %s:%s", filter.AuthNetAddr, filter.AuthAddr)
+			}
 			addrString := AddrString{
 				Net:     filter.AuthNetAddr,
 				Address: filter.AuthAddr,
@@ -268,7 +273,7 @@ func (p *PolicyList) getAuthenticatedPolicyAddresses() map[AddrString]*SievePoli
 			listenerMap[addrString] = filter
 		}
 	}
-	return listenerMap
+	return listenerMap, nil
 }
 
 func (p *PolicyList) getFilterForPath(path string) *SievePolicyJSONConfig {
