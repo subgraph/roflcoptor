@@ -113,7 +113,7 @@ func setupFakeProxyAndTorService(proxyNet, proxyAddress string, procInfo procsni
 	}
 	config := RoflcoptorConfig{
 		ProcSnitchSocketFile: "-",
-		FiltersPath:          "./filters",
+		FiltersPath:          "./examples/filters",
 		Listeners:            listeners,
 		TorControlNet:        "unix",
 		TorControlAddress:    "test_tor_socket",

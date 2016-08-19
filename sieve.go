@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -174,6 +175,15 @@ func NewPolicyList() PolicyList {
 	return policyList
 }
 
+func (p *PolicyList) ListenerExists(policy *SievePolicyJSONConfig) bool {
+	for _, n := range p.loadedFilters {
+		if policy.AuthNetAddr == n.AuthNetAddr && policy.AuthAddr == n.AuthAddr {
+			return true
+		}
+	}
+	return false
+}
+
 // LoadFilters loads filter files
 func (p *PolicyList) LoadFilters(directoryPath string) error {
 	fs, err := ioutil.ReadDir(directoryPath)
@@ -190,6 +200,10 @@ func (p *PolicyList) LoadFilters(directoryPath string) error {
 					log.Noticef("error loading '%s': %v", f.Name(), err)
 					continue
 				}
+				if p.ListenerExists(ff) {
+					return fmt.Errorf("listener already configured: %s:%s", ff.AuthNetAddr, ff.AuthAddr)
+				}
+
 				log.Noticef("Loaded filter for: %s (%d)\n", ff.ExecPath, ff.UserID)
 				lf = append([]*SievePolicyJSONConfig(lf), ff)
 			}

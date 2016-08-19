@@ -69,7 +69,12 @@ func NewProxyListener(cfg *RoflcoptorConfig, watch bool, procInfo procsnitch.Pro
 // the same exec path of "/usr/sbin/oz-daemon"
 func (p *ProxyListener) StartListeners() {
 	var err error
-	p.policyList.LoadFilters(p.cfg.FiltersPath)
+
+	err = p.policyList.LoadFilters(p.cfg.FiltersPath)
+	if err != nil {
+		panic(fmt.Sprintf("failed to load filter policy: %s", err))
+	}
+
 	// compile a list of all control ports;
 	// we black list them from being the onion target address
 	p.compileOnionAddrBlacklist()
