@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -44,7 +45,26 @@ func isTerminal(fd int) bool {
 	return err == 0
 }
 
-func setupLoggerBackend() logging.LeveledBackend {
+func stringToLogLevel(level string) (logging.Level, error) {
+
+	switch level {
+	case "DEBUG":
+		return logging.DEBUG, nil
+	case "INFO":
+		return logging.INFO, nil
+	case "NOTICE":
+		return logging.NOTICE, nil
+	case "WARNING":
+		return logging.WARNING, nil
+	case "ERROR":
+		return logging.ERROR, nil
+	case "CRITICAL":
+		return logging.CRITICAL, nil
+	}
+	return -1, fmt.Errorf("invalid logging level %s", level)
+}
+
+func setupLoggerBackend(level logging.Level) logging.LeveledBackend {
 	format := logFormat
 	if isTerminal(int(os.Stderr.Fd())) {
 		format = ttyFormat
@@ -52,7 +72,7 @@ func setupLoggerBackend() logging.LeveledBackend {
 	backend := logging.NewLogBackend(os.Stderr, "", 0)
 	formatter := logging.NewBackendFormatter(backend, format)
 	leveler := logging.AddModuleLevel(formatter)
-	leveler.SetLevel(logging.INFO, "roflcoptor")
+	leveler.SetLevel(level, "roflcoptor")
 	return leveler
 }
 
@@ -100,12 +120,21 @@ func loadConfiguration(configFilePath string) (*RoflcoptorConfig, error) {
 func main() {
 	var configFilePath string
 	var watchMode bool
+	var logLevel string
 	var config *RoflcoptorConfig
+	var level logging.Level
 	var err error
 
 	flag.StringVar(&configFilePath, "config", "", "configuration file")
 	flag.BoolVar(&watchMode, "watch", false, "watch-mode of operation will default to unfiltered-allow policy")
+	flag.StringVar(&logLevel, "log_level", "INFO", "logging level could be set to: DEBUG, INFO, NOTICE, WARNING, ERROR, CRITICAL")
 	flag.Parse()
+
+	if configFilePath == "" {
+		log.Error("you must specify a configuration file")
+		flag.Usage()
+		os.Exit(1)
+	}
 
 	// Load configuration file
 	config, err = loadConfiguration(configFilePath)
@@ -113,7 +142,12 @@ func main() {
 		panic(err)
 	}
 
-	logBackend := setupLoggerBackend()
+	level, err = stringToLogLevel(logLevel)
+	if err != nil {
+		log.Critical("Invalid logging-level specified.")
+		os.Exit(1)
+	}
+	logBackend := setupLoggerBackend(level)
 	log.SetBackend(logBackend)
 
 	if os.Geteuid() == 0 {
