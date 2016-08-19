@@ -333,7 +333,7 @@ func (s *ProxySession) appConnWrite(fromServer bool, b []byte) (int, error) {
 
 	s.appConnWriteLock.Lock()
 	defer s.appConnWriteLock.Unlock()
-	log.Debugf("%s %s", prefix, bytes.TrimSpace(b))
+	log.Debugf("%s %q", prefix, b)
 	return s.appConn.Write(b)
 }
 
@@ -491,21 +491,20 @@ func (s *ProxySession) proxyFilterTorToApp() {
 	defer s.Done()
 	appName := fmt.Sprintf("[%s]", s.myProcInfo.ExePath)
 
-	rd := bufio.NewReader(s.torConn)
 	for {
-		line, err := rd.ReadBytes('\n')
+		response, err := s.torConn.ReadResponse()
 		if err != nil {
 			s.errChan <- err
 			break
 		}
-		lineStr := strings.TrimSpace(string(line))
+		responseStr := strings.Join(response.RawLines, "\r\n")
 		if s.watch && s.policy == nil {
-			log.Infof("watch-mode: %s A<-T: [%s]\n", appName, lineStr)
-			_, err = s.appConnWrite(true, line)
+			log.Infof("watch-mode: %s A<-T: [%q]\n", appName, responseStr)
+			_, err = s.appConnWrite(true, []byte(responseStr))
 		} else {
-			outputMessage := s.serverSieve.Filter(lineStr)
+			outputMessage := s.serverSieve.Filter(responseStr)
 			if outputMessage == "" {
-				log.Errorf("filter policy for %s DENY: %s A<-T: [%s]\n", s.policy.ExecPath, appName, lineStr)
+				log.Errorf("filter policy for %s DENY: %s A<-T: [%q]\n", s.policy.ExecPath, appName, responseStr)
 			} else {
 				_, err = s.appConnWrite(true, []byte(outputMessage+"\r\n"))
 			}
