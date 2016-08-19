@@ -1,7 +1,7 @@
 {
     "AuthNetAddr" : "unix",
     "AuthAddr" : "/var/run/roflcoptor/onionshare.socket",
-    "exec-path": "onionshare",
+    "exec-path": "/usr/bin/onionshare",
     "client-allowed" : ["SETEVENTS SIGNAL CONF_CHANGED",
 			"GETCONF __owningcontrollerprocess",
 			"GETINFO version",
