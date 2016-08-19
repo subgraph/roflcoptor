@@ -1,8 +1,0 @@
-[Unit]
-Description=roflcoptor - onion router control port filtration daemon
-After=tor.service
-
-[Service]
-Type=simple
-User=roflcoptor
-ExecStart=/home/user/gopath/bin/roflcoptor -watch -config /etc/roflcoptor/roflcoptor_config.json
