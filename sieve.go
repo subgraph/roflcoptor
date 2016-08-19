@@ -263,9 +263,6 @@ func (p *PolicyList) getAuthenticatedPolicyAddresses() (map[AddrString]*SievePol
 	listenerMap := make(map[AddrString]*SievePolicyJSONConfig)
 	for _, filter := range p.loadedFilters {
 		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
-			if p.ListenerExists(filter) {
-				return listenerMap, fmt.Errorf("Operator failure: listener already exists: %s:%s", filter.AuthNetAddr, filter.AuthAddr)
-			}
 			addrString := AddrString{
 				Net:     filter.AuthNetAddr,
 				Address: filter.AuthAddr,
