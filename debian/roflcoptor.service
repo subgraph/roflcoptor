@@ -7,7 +7,7 @@ Requires=procsnitchd.service tor.service
 Type=simple
 User=roflcoptor
 PermissionsStartOnly=true
-ExecStartPre=-/bin/mkdir /var/run/roflcoptor
+ExecStartPre=/bin/mkdir -p /var/run/roflcoptor
 ExecStartPre=/bin/chown roflcoptor /var/run/roflcoptor
 ExecStart=/usr/bin/roflcoptor -config /etc/roflcoptor/roflcoptor_config.json
 
