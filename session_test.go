@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/subgraph/go-procsnitch"
+	"github.com/subgraph/procsnitchd/service"
 	"github.com/yawning/bulb"
 )
 
@@ -42,7 +43,7 @@ func (r MockProcInfo) LookupUDPSocketProcess(srcPort uint16) *procsnitch.Info {
 type AccumulatingListener struct {
 	net, address    string
 	buffer          bytes.Buffer
-	mortalService   *MortalService
+	mortalService   *service.MortalService
 	hasProtocolInfo bool
 	hasAuthenticate bool
 }
@@ -58,7 +59,7 @@ func NewAccumulatingListener(net, address string) *AccumulatingListener {
 }
 
 func (a *AccumulatingListener) Start() {
-	a.mortalService = NewMortalService(a.net, a.address, a.SessionWorker)
+	a.mortalService = service.NewMortalService(a.net, a.address, a.SessionWorker)
 	err := a.mortalService.Start()
 	if err != nil {
 		panic(err)
