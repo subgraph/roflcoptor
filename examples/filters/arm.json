@@ -1,5 +1,6 @@
 {
-    "exec-path": "/usr/bin/arm",
+    "AuthNetAddr" : "unix",
+    "AuthAddr" : "/var/run/roflcoptor/arm.socket",
     "client-allowed" : ["PROTOCOLINFO", "SETEVENTS NEWCONSENSUS BW", "GETCONF ORPort"],
     "client-allowed-prefixes" : ["GETCONF BandwidthRate",
 				 "GETCONF BandwidthBurst",
