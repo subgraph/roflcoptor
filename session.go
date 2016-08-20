@@ -429,9 +429,13 @@ func (s *ProxySession) allowConnection() bool {
 		}
 	} else {
 		s.getProcInfo()
-		if s.myProcInfo.ExePath != "/usr/sbin/oz-daemon" {
+		if s.myProcInfo == nil {
+			log.Error("failed to get proc info for connection")
+			return false
+		}
+		if s.myProcInfo.ExePath != s.policy.ExecPath {
 			// denied!
-			log.Errorf("pre auth socket was connected to by a app other than the oz-daemon")
+			log.Errorf("pre auth socket was connected to by a app other than %s", s.policy.ExecPath)
 			return false
 		}
 	}
