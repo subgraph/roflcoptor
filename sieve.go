@@ -275,6 +275,9 @@ func (p *PolicyList) getAuthenticatedPolicyAddresses() (map[AddrString]*SievePol
 
 func (p *PolicyList) getFilterForPath(path string) *SievePolicyJSONConfig {
 	for _, filter := range p.loadedFilters {
+		if filter.AuthNetAddr != "" {
+			continue
+		}
 		if filter.ExecPath == path && filter.UserID == -1 {
 			return filter
 		}
@@ -284,6 +287,9 @@ func (p *PolicyList) getFilterForPath(path string) *SievePolicyJSONConfig {
 
 func (p *PolicyList) getFilterForPathAndUID(path string, uid int) *SievePolicyJSONConfig {
 	for _, filter := range p.loadedFilters {
+		if filter.AuthNetAddr != "" {
+			continue
+		}
 		if filter.ExecPath == path && filter.UserID == uid {
 			return filter
 		}
