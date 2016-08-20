@@ -14,7 +14,7 @@ func TestFilter(t *testing.T) {
 		"^\\d+ BUILD hello",
 	}
 	regexreplacements := map[string]string{
-		"sensitive data \\d+ " : "ok data 000 ",
+		"sensitive data \\d+ ": "ok data 000 ",
 	}
 	replacements := map[string]string{
 		"123":     "456",
@@ -75,7 +75,11 @@ func TestFilter(t *testing.T) {
 		},
 		{
 			"12345 BUILD this is a test",
-			"12345 BUILD this s a test",
+			"",
+		},
+		{
+			"123456789 BUILD hello",
+			"123456789 BUILD hello",
 		},
 		{
 			"this is sensitive data 12345 now i am done",

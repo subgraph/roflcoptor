@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -174,6 +175,15 @@ func NewPolicyList() PolicyList {
 	return policyList
 }
 
+func (p *PolicyList) ListenerExists(policy *SievePolicyJSONConfig) bool {
+	for _, n := range p.loadedFilters {
+		if policy.AuthNetAddr == n.AuthNetAddr && policy.AuthAddr == n.AuthAddr {
+			return true
+		}
+	}
+	return false
+}
+
 // LoadFilters loads filter files
 func (p *PolicyList) LoadFilters(directoryPath string) error {
 	fs, err := ioutil.ReadDir(directoryPath)
@@ -190,8 +200,14 @@ func (p *PolicyList) LoadFilters(directoryPath string) error {
 					log.Noticef("error loading '%s': %v", f.Name(), err)
 					continue
 				}
+				if ff.AuthNetAddr != "" {
+					if p.ListenerExists(ff) {
+						return fmt.Errorf("listener already configured: %s:%s", ff.AuthNetAddr, ff.AuthAddr)
+					}
+				}
 				log.Noticef("Loaded filter for: %s (%d)\n", ff.ExecPath, ff.UserID)
 				lf = append([]*SievePolicyJSONConfig(lf), ff)
+				p.loadedFilters = lf
 			}
 		}
 	}
@@ -243,7 +259,7 @@ func (p *PolicyList) getListenerAddresses() []AddrString {
 	return addrList
 }
 
-func (p *PolicyList) getAuthenticatedPolicyAddresses() map[AddrString]*SievePolicyJSONConfig {
+func (p *PolicyList) getAuthenticatedPolicyAddresses() (map[AddrString]*SievePolicyJSONConfig, error) {
 	listenerMap := make(map[AddrString]*SievePolicyJSONConfig)
 	for _, filter := range p.loadedFilters {
 		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
@@ -254,7 +270,7 @@ func (p *PolicyList) getAuthenticatedPolicyAddresses() map[AddrString]*SievePoli
 			listenerMap[addrString] = filter
 		}
 	}
-	return listenerMap
+	return listenerMap, nil
 }
 
 func (p *PolicyList) getFilterForPath(path string) *SievePolicyJSONConfig {

@@ -1,0 +1,22 @@
+{
+    "exec-path": "/usr/local/bin/ricochet",
+    "client-allowed" : ["GETCONF DisableNetwork",
+                        "SETEVENTS STATUS_CLIENT",
+                        "GETINFO status/circuit-established status/bootstrap-phase net/listeners/socks"],
+    "client-allowed-prefixes" : ["ADD_ONION", "DEL_ONION"],
+    "client-replacements" : {},
+    "client-replacement-prefixes" : {},
+    "server-allowed" : ["250 OK"],
+    "server-allowed-prefixes" : ["250-ServiceID=",
+				 "250-VERSION",
+				 "250-AUTH METHODS=",
+				 "250 DisableNetwork=",
+				 "250-status/circuit-established=",
+				 "250-status/bootstrap-phase=",
+				 "250-net/listeners/socks=",
+				 "250-ServiceID=",
+				 "250-PrivateKey=",
+				 "650 STREAM",
+				 "650 STATUS_CLIENT"],
+    "server-replacement-prefixes" : {}
+}
