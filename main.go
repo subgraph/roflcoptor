@@ -159,7 +159,7 @@ func main() {
 	signal.Notify(sigKillChan, os.Interrupt, os.Kill)
 
 	log.Notice("roflcoptor startup!")
-	procsnitchClient := client.NewSnitchClient(config.ProcSnitchSocketFile)
+	procsnitchClient := client.NewSnitchClient(config.ProcSnitchSocketFile, nil)
 	err = procsnitchClient.Start()
 	if err != nil {
 		log.Criticalf("procsnitchClient failed to connect: %s", err)
