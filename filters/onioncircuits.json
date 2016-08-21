@@ -1,6 +1,8 @@
 {
-   "exec-path" : "/usr/bin/python3.5",
-   "client-allowed" : [
+    "exec-path" : "/usr/sbin/oz-daemon",
+    "AuthNetAddr" : "unix",
+    "AuthAddr" : "/var/run/roflcoptor/onioncircuits.socket",
+    "client-allowed" : [
       "GETCONF __owningcontrollerprocess",
       "GETINFO version",
       "GETINFO circuit-status",
