@@ -1,6 +1,8 @@
 {
-   "exec-path" : "/usr/sbin/oz-daemon",
-   "server-allowed-prefixes" : [
+    "exec-path" : "/usr/sbin/oz-daemon",
+    "AuthNetAddr" : "unix",
+    "AuthAddr" : "/var/run/roflcoptor/tbb.socket",
+    "server-allowed-prefixes" : [
       "650 STREAM",
       "250-net/listeners/socks=",
       "250+circuit-status=",
