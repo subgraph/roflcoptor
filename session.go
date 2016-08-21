@@ -144,10 +144,11 @@ func (p *ProxyListener) initAuthenticatedListeners() {
 	}
 
 	for location, policy := range locations {
+		copyPolicy := policy
 		handleNewConnection := func(conn net.Conn) error {
 			log.Debugf("connection received %s:%s -> %s:%s\n", conn.RemoteAddr().Network(),
 				conn.RemoteAddr().String(), conn.LocalAddr().Network(), conn.LocalAddr().String())
-			s := NewAuthProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, policy)
+			s := NewAuthProxySession(conn, p.cfg.TorControlNet, p.cfg.TorControlAddress, p.onionDenyAddrs, p.watch, p.procInfo, &copyPolicy)
 			s.sessionWorker()
 
 			return nil
