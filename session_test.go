@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leif/bulb"
 	"github.com/subgraph/go-procsnitch"
 	"github.com/subgraph/procsnitchd/service"
-	"github.com/yawning/bulb"
 )
 
 type MockProcInfo struct {
