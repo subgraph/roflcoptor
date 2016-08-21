@@ -1,0 +1,34 @@
+{
+   "AuthNetAddr" : "unix",
+   "AuthAddr" : "/var/run/roflcoptor/onioncircuits.socket",
+   "exec-path" : "/usr/sbin/oz-daemon",
+   "client-allowed" : [
+      "GETCONF __owningcontrollerprocess",
+      "GETINFO version",
+      "GETINFO circuit-status",
+      "GETINFO stream-status",
+      "GETCONF usemicrodescriptors"
+   ],
+   "client-allowed-prefixes" : [
+      "GETINFO ns/id/",
+      "GETINFO ip-to-country/"
+   ],
+   "server-allowed" : [
+      "250 OK",
+      "250 ORPort",
+      "250 __OwningControllerProcess"
+   ],
+   "server-allowed-prefixes" : [
+      "250-version=",
+      "250+circuit-status=",
+      "250+stream-status=",
+      "250+ns/id/",
+      "650 STREAM",
+      "250 UseMicrodescriptors",
+      "250-ip-to-country/",
+      "650 CIRC"
+   ],
+   "client-regex" : [
+      "SETEVENTS( (CONF_CHANGED|SIGNAL|STREAM|CIRC)){0,4}"
+   ]
+}
