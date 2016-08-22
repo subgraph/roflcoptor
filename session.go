@@ -11,9 +11,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/leif/bulb"
 	"github.com/subgraph/go-procsnitch"
 	"github.com/subgraph/procsnitchd/service"
+	"github.com/yawning/bulb"
 )
 
 const (
