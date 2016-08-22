@@ -1,0 +1,42 @@
+{
+    "exec-path" : "/usr/sbin/oz-daemon",
+    "AuthNetAddr" : "unix",
+    "AuthAddr" : "/var/run/roflcoptor/tbb.socket",
+    "server-allowed-prefixes" : [
+      "650 STREAM",
+      "250-net/listeners/socks=",
+      "250+circuit-status=",
+      "250 Bridge",
+      "250+ns/id/",
+      "250-ip-to-country/"
+   ],
+   "server-replacement-prefixes" : {},
+   "client-replacement-prefixes" : {},
+   "server-allowed" : [
+      "250 OK",
+      "250 UseBridges=0",
+      "250 ReachableAddresses",
+      "250 Socks4Proxy",
+      "."
+   ],
+   "server-regexes" : [],
+   "server-scrub-regexes" : {},
+   "client-allowed-prefixes" : [
+      "getinfo ns/id/",
+      "getinfo ip-to-country/"
+   ],
+   "client-replacements" : {},
+   "client-allowed" : [
+      "setevents stream",
+      "getinfo circuit-status",
+      "SIGNAL NEWNYM",
+      "GETINFO net/listeners/socks",
+      "GETCONF UseBridges",
+      "GETCONF Bridge",
+      "GETCONF Socks4Proxy",
+      "GETCONF Socks5Proxy",
+      "GETCONF HTTPSProxy",
+      "getconf bridge",
+      "GETCONF ReachableAddresses"
+   ]
+}
