@@ -31,6 +31,10 @@ type SievePolicyJSONConfig struct {
 	ServerScrubRegexes        map[string]string `json:"server-scrub-regexes"`
 	ServerReplacements        map[string]string `json:"server-replacements"`
 	ServerReplacementPrefixes map[string]string `json:"server-replacement-prefixes"`
+
+	OzApp              string `json:"oz-app":`
+	OzAppForwarderName string `json:"oz-app-forwarder-name":`
+	OzForwardOnion     bool   `json:"request-oz-onion-forwarder":`
 }
 
 // GetSieves -> client sieve, server sieve
