@@ -1,0 +1,26 @@
+{
+    "AuthNetAddr" : "unix",
+    "AuthAddr" : "/var/run/roflcoptor/ricochet.socket",
+    "exec-path": "/usr/sbin/oz-daemon",
+    "client-allowed" : ["SETEVENTS SIGNAL CONF_CHANGED",
+			"GETCONF __owningcontrollerprocess",
+			"GETINFO version",
+			"SETEVENTS SIGNAL HS_DESC CONF_CHANGED",
+			"GETCONF DisableNetwork",
+			"SETEVENTS STATUS_CLIENT",
+			"GETINFO status/circuit-established status/bootstrap-phase net/listeners/socks"
+		       ],
+    "client-allowed-prefixes" : ["ADD_ONION", "DEL_ONION"],
+    "client-replacements" : {},
+    "client-replacement-prefixes" : {},
+    "server-allowed" : ["250 OK",
+		       "250 __OwningControllerProcess",
+			"650 STATUS_CLIENT NOTICE CONSENSUS_ARRIVED", "550 Onion address collision"],
+    "server-allowed-prefixes" : ["250-ServiceID=", "250-VERSION","250-version",
+				 "250-PrivateKey=", "650 STREAM",
+				"650 HS_DESC", "250 DisableNetwork=","250-status/circuit-established=1"],
+    "server-replacement-prefixes" : {},
+    "request-oz-onion-forwarder": true,
+    "oz-app" : "ricochet",
+    "oz-app-forwarder-name" : "dynamic-ricochet-server"
+}
