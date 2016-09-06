@@ -13,20 +13,28 @@
 			"Rev": "9ed73dde9f6f84be72aa010394902057ac26b625"
 		},
 		{
+			"ImportPath": "github.com/subgraph/ozipc",
+			"Rev": "2cbf2ba8878e9dea012edb021f3b4836f7c93202"
+		},
+		{
 			"ImportPath": "github.com/subgraph/procsnitchd/client",
-			"Rev": "499a30bdc370f66d4bff8b1a8e38deb5cb57cd67"
+			"Rev": "1ce9db5b571e5f354c3fdb6c7a663323e28b62c2"
 		},
 		{
 			"ImportPath": "github.com/subgraph/procsnitchd/protocol",
-			"Rev": "499a30bdc370f66d4bff8b1a8e38deb5cb57cd67"
+			"Rev": "1ce9db5b571e5f354c3fdb6c7a663323e28b62c2"
+		},
+		{
+			"ImportPath": "github.com/subgraph/procsnitchd/service",
+			"Rev": "1ce9db5b571e5f354c3fdb6c7a663323e28b62c2"
 		},
 		{
 			"ImportPath": "github.com/yawning/bulb",
-			"Rev": "e639c4d32b727afa3da783c84105af7886386956"
+			"Rev": "2d65b370c8d197791de1288e4d2778a2a3cc5abc"
 		},
 		{
 			"ImportPath": "github.com/yawning/bulb/utils/pkcs1",
-			"Rev": "e639c4d32b727afa3da783c84105af7886386956"
+			"Rev": "2d65b370c8d197791de1288e4d2778a2a3cc5abc"
 		},
 		{
 			"ImportPath": "golang.org/x/net/proxy",
