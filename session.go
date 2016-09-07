@@ -559,7 +559,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 			outputMessage := s.clientSieve.Filter(cmdLine)
 			if outputMessage == "" {
 				log.Errorf("filter policy for %s DENY: %s A->T: [%s]\n", s.policy.ExecPath, appName, cmdLine)
-				_, err = s.appConnWrite(false, []byte("250 Tor Control command proxy denied: filtration policy.\r\n"))
+				_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
 				continue
 			} else {
 				// handle the ADD_ONION special case
@@ -579,7 +579,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 						if s.policy.OzForwardOnion == true {
 							if s.policy.OzApp == "" {
 								log.Errorf("Missing Oz profile name, filter policy syntax error on %s so DENY: %s A->T: [%s]\n", s.policy.ExecPath, appName, cmdLine)
-								_, err = s.appConnWrite(false, []byte("250 Tor Control command proxy denied: filtration policy.\r\n"))
+								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
 								if err != nil {
 									s.errChan <- err
 								}
@@ -588,7 +588,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 							id, err := s.findOzSandbox(s.policy.OzApp)
 							if err != nil {
 								log.Errorf("Could not lookup %s sandbox ID for %s so DENY: %s A->T: [%s]\n", s.policy.OzApp, s.policy.ExecPath, appName, cmdLine)
-								_, err = s.appConnWrite(false, []byte("250 Tor Control command proxy denied: filtration policy.\r\n"))
+								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
 								if err != nil {
 									s.errChan <- err
 								}
@@ -600,7 +600,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 							socketPath, err := s.requestOzForwarder(id, s.policy.OzAppForwarderName, localPort)
 							if err != nil {
 								log.Errorf("Error creating Oz forwarder for app %s (%s): %v", s.policy.OzApp, s.policy.OzAppForwarderName, err)
-								_, err = s.appConnWrite(false, []byte("250 Tor Control command proxy denied: filtration policy.\r\n"))
+								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
 								if err != nil {
 									s.errChan <- err
 								}
