@@ -595,6 +595,15 @@ func (s *ProxySession) proxyFilterAppToTor() {
 								continue
 							}
 							keytype, keyblob, onionPort, localPort, err := s.dissectOnion(cmdLine)
+							if err != nil {
+								log.Errorf("Error parsing ADD_ONION command.")
+								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
+								if err != nil {
+									s.errChan <- err
+								}
+								continue
+							}
+
 							log.Noticef("ADD_ONION request for %s: %s", s.policy.OzApp, cmdLine)
 							log.Noticef("Requesting new forwarder from Oz for %d, %s, %s", id, s.policy.OzAppForwarderName, localPort)
 							socketPath, err := s.requestOzForwarder(id, s.policy.OzAppForwarderName, localPort)
@@ -604,7 +613,6 @@ func (s *ProxySession) proxyFilterAppToTor() {
 								if err != nil {
 									s.errChan <- err
 								}
-
 								continue
 							}
 							log.Noticef("Oz dynamic forwarder %s for %s sandbox %d created: %s => 127.0.0.1:%s", s.policy.OzAppForwarderName, s.policy.OzApp, id, socketPath, localPort)
