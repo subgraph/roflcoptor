@@ -115,10 +115,8 @@ func TestLoadFilters(t *testing.T) {
 	invalidContent := []byte("temporary file's content")
 	validContent := []byte(`
 {
-    "AuthNetAddr" : "tcp",
-    "AuthAddr" : "127.0.0.1:6651",
     "user-id" : 123,
-    "exec-path": "/srv/oz/rootfs/home/user/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/firefox",
+    "exec-path": "/usr/bin/firefox",
     "client-allowed" : ["SIGNAL NEWNYM","GETINFO net/listeners/socks", "GETCONF UseBridges", "GETCONF Bridge",
 			"GETCONF Socks4Proxy", "GETCONF Socks5Proxy", "GETCONF HTTPSProxy",
 		       "GETCONF ReachableAddresses"],
@@ -161,7 +159,7 @@ func TestLoadFilters(t *testing.T) {
 		t.Fail()
 	}
 
-	policy = p.getFilterForPathAndUID("/srv/oz/rootfs/home/user/.local/share/torbrowser/tbb/x86_64/tor-browser_en-US/Browser/firefox", 123)
+	policy = p.getFilterForPathAndUID("/usr/bin/firefox", 123)
 	if policy == nil {
 		t.Errorf("getFilterForPathAndUID should have succeeded")
 		t.Fail()
