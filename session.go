@@ -542,7 +542,6 @@ func (s *ProxySession) proxyFilterAppToTor() {
 			s.errChan <- err
 			break
 		}
-
 		if s.watch && s.policy == nil {
 			log.Infof("watch-mode: %s A->T: [%s]\n", appName, cmdLine)
 			_, err = s.torConn.Write([]byte(raw))
@@ -649,10 +648,19 @@ var addOnionRegexp = regexp.MustCompile("ADD_ONION (?P<keytype>[^ ]+):(?P<keyblo
 // here virtport is different than target port :
 // ADD_ONION NEW:BEST Port=80,127.0.0.1:2345
 func (s *ProxySession) shouldAllowOnion(command string) bool {
+	ports := ""
 	target := ""
-	ports := addOnionRegexp.FindString(command)
+	m := addOnionRegexp.FindStringSubmatch(command)
+	if m == nil {
+		return true
+	}
+	for i, name := range addOnionRegexp.SubexpNames() {
+		if name == "ports" {
+			ports = m[i]
+			break
+		}
+	}
 	fields := strings.Split(ports, ",")
-
 	if len(fields) == 2 {
 		target = fields[1]
 		fields = strings.Split(target, ":")
@@ -664,12 +672,9 @@ func (s *ProxySession) shouldAllowOnion(command string) bool {
 		}
 		// target only specifies a port
 		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", target))
+	} else {
+		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", ports))
 	}
-	// target not specified, default to port only specified as virtport
-	if len(ports) > 0 {
-		ports = ports[1:len(ports)]
-	}
-	return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", ports))
 }
 
 func (s *ProxySession) dissectOnion(command string) (keytype, keyblob, onionPort, localPort string, err error) {
