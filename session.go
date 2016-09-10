@@ -542,7 +542,6 @@ func (s *ProxySession) proxyFilterAppToTor() {
 			s.errChan <- err
 			break
 		}
-
 		if s.watch && s.policy == nil {
 			log.Infof("watch-mode: %s A->T: [%s]\n", appName, cmdLine)
 			_, err = s.torConn.Write([]byte(raw))
@@ -559,7 +558,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 			outputMessage := s.clientSieve.Filter(cmdLine)
 			if outputMessage == "" {
 				log.Errorf("filter policy for %s DENY: %s A->T: [%s]\n", s.policy.ExecPath, appName, cmdLine)
-				_, err = s.appConnWrite(false, []byte("250 Tor Control command proxy denied: filtration policy.\r\n"))
+				_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
 				continue
 			} else {
 				// handle the ADD_ONION special case
@@ -576,7 +575,51 @@ func (s *ProxySession) proxyFilterAppToTor() {
 						}
 						continue
 					} else {
-						log.Noticef("allowed ADD_ONION with %s", cmdLine)
+						if s.policy.OzForwardOnion == true {
+							if s.policy.OzApp == "" {
+								log.Errorf("Missing Oz profile name, filter policy syntax error on %s so DENY: %s A->T: [%s]\n", s.policy.ExecPath, appName, cmdLine)
+								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
+								if err != nil {
+									s.errChan <- err
+								}
+								continue
+							}
+							id, err := s.findOzSandbox(s.policy.OzApp)
+							if err != nil {
+								log.Errorf("Could not lookup %s sandbox ID for %s so DENY: %s A->T: [%s]\n", s.policy.OzApp, s.policy.ExecPath, appName, cmdLine)
+								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
+								if err != nil {
+									s.errChan <- err
+								}
+								continue
+							}
+							keytype, keyblob, onionPort, localPort, err := s.dissectOnion(cmdLine)
+							if err != nil {
+								log.Errorf("Error parsing ADD_ONION command.")
+								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
+								if err != nil {
+									s.errChan <- err
+								}
+								continue
+							}
+
+							log.Noticef("ADD_ONION request for %s: %s", s.policy.OzApp, cmdLine)
+							log.Noticef("Requesting new forwarder from Oz for %d, %s, %s", id, s.policy.OzAppForwarderName, localPort)
+							socketPath, err := s.requestOzForwarder(id, s.policy.OzAppForwarderName, localPort)
+							if err != nil {
+								log.Errorf("Error creating Oz forwarder for app %s (%s): %v", s.policy.OzApp, s.policy.OzAppForwarderName, err)
+								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
+								if err != nil {
+									s.errChan <- err
+								}
+								continue
+							}
+							log.Noticef("Oz dynamic forwarder %s for %s sandbox %d created: %s => 127.0.0.1:%s", s.policy.OzAppForwarderName, s.policy.OzApp, id, socketPath, localPort)
+							newOut := "ADD_ONION " + keytype + ":" + keyblob + " Port=" + onionPort + "," + "unix:" + socketPath
+							outputMessage = newOut
+							log.Noticef("rewrote ADD_ONION with %s", newOut)
+						}
+						log.Noticef("allowed ADD_ONION with %s", outputMessage)
 					}
 				}
 				// send command to tor
@@ -590,7 +633,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 }
 
 // ADD_ONION filtration -
-var addOnionRegexp = regexp.MustCompile("=([^ ]+)")
+var addOnionRegexp = regexp.MustCompile("ADD_ONION (?P<keytype>[^ ]+):(?P<keyblob>[^ ]+) Port=(?P<ports>[^ ]+)")
 
 // shouldAllowOnion implements our deny policy for ADD_ONION.
 // If the application filter policy specified an allow rule
@@ -605,10 +648,19 @@ var addOnionRegexp = regexp.MustCompile("=([^ ]+)")
 // here virtport is different than target port :
 // ADD_ONION NEW:BEST Port=80,127.0.0.1:2345
 func (s *ProxySession) shouldAllowOnion(command string) bool {
+	ports := ""
 	target := ""
-	ports := addOnionRegexp.FindString(command)
+	m := addOnionRegexp.FindStringSubmatch(command)
+	if m == nil {
+		return true
+	}
+	for i, name := range addOnionRegexp.SubexpNames() {
+		if name == "ports" {
+			ports = m[i]
+			break
+		}
+	}
 	fields := strings.Split(ports, ",")
-
 	if len(fields) == 2 {
 		target = fields[1]
 		fields = strings.Split(target, ":")
@@ -620,12 +672,55 @@ func (s *ProxySession) shouldAllowOnion(command string) bool {
 		}
 		// target only specifies a port
 		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", target))
+	} else {
+		return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", ports))
 	}
-	// target not specified, default to port only specified as virtport
-	if len(ports) > 0 {
-		ports = ports[1:len(ports)]
+}
+
+func (s *ProxySession) dissectOnion(command string) (keytype, keyblob, onionPort, localPort string, err error) {
+	target := ""
+	ports := ""
+	m := addOnionRegexp.FindStringSubmatch(command)
+	if m == nil {
+		return "", "", "", "", fmt.Errorf("Error extracting ports from %s\n", command)
 	}
-	return !s.isAddrDenied("tcp", fmt.Sprintf("127.0.0.1:%s", ports))
+	for i, name := range addOnionRegexp.SubexpNames() {
+		if name == "ports" {
+			ports = m[i]
+		} else if name == "keytype" {
+			keytype = m[i]
+		} else if name == "keyblob" {
+			keyblob = m[i]
+		}
+	}
+	if ports == "" {
+		return "", "", "", "", fmt.Errorf("Error extracting ports from %s\n", command)
+	}
+
+	fields := strings.Split(ports, ",")
+
+	if len(fields) == 2 {
+		target = fields[1]
+		targetSplit := strings.Split(target, ":")
+		if len(targetSplit) == 2 {
+			if targetSplit[0] != "127.0.0.1" {
+				return "", "", "", "", fmt.Errorf("Unimplemented: forwarding to non-localhost target %s\n", target)
+			} else {
+				localPort = targetSplit[1]
+			}
+		} else {
+			localPort = fields[1]
+		}
+		onionPort = fields[0]
+	} else {
+		if len(ports) > 0 {
+			onionPort = ports[1:len(ports)]
+			localPort = ports[1:len(ports)]
+		} else {
+			return "", "", "", "", fmt.Errorf("Bad ADD_ONION command string: %s\n", command)
+		}
+	}
+	return keytype, keyblob, onionPort, localPort, nil
 }
 
 func (s *ProxySession) isAddrDenied(net, addr string) bool {
@@ -635,4 +730,21 @@ func (s *ProxySession) isAddrDenied(net, addr string) bool {
 		}
 	}
 	return false
+}
+
+func (s *ProxySession) findOzSandbox(profile string) (id int, err error) {
+	sandboxes, err := ListSandboxes()
+	if err != nil {
+		return -1, err
+	}
+	for _, s := range sandboxes {
+		if s.Profile == profile {
+			return s.Id, nil
+		}
+	}
+	return -1, fmt.Errorf("Sandbox %s not running.\n", profile)
+}
+
+func (s *ProxySession) requestOzForwarder(id int, name, port string) (path string, err error) {
+	return AskForwarder(id, name, port)
 }
