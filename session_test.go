@@ -278,20 +278,18 @@ func TestProxyListenerSession(t *testing.T) {
 		t.Fail()
 	}
 
-	response, err = clientConn.Request("ADD_ONION NEW:BEST Port=4491,80\r\n")
+	response, err = clientConn.Request("ADD_ONION NEW:BEST Port=4491,80")
 	if err != nil || !response.IsOk() {
-		t.Errorf("ADD_ONION fail: %v", err)
+		t.Errorf("wtf ADD_ONION fail: %v", err)
 		t.Fail()
 	}
 
-	response, err = clientConn.Request("ADD_ONION NEW:BEST Port=4491\r\n")
+	response, err = clientConn.Request("ADD_ONION NEW:BEST Port=4491")
 	fmt.Println("response is ", response)
-	/* XXX fix me
-	if response.IsOk() && err == nil {
-		t.Error("ADD_ONION fail should have failed because target was control port")
+	if response.IsOk() {
+		t.Error("yo ADD_ONION fail should have failed because target was control port")
 		t.Fail()
 	}
-	*/
 	want := "PROTOCOLINFO\nAUTHENTICATE\nADD_ONION NEW:BEST Port=4491,80\n"
 	if fakeTorService.buffer.String() != want {
 		t.Errorf("accumulated control commands don't match: got:\n%s\n\nbut expected:\n%s", fakeTorService.buffer.String(), want)
