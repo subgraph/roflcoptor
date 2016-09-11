@@ -1,14 +1,13 @@
 [Unit]
 Description=roflcoptor - onion router control port filtration daemon
-After=procsnitchd.service tor.service
+After=procsnitchd.service
 Requires=procsnitchd.service tor.service
 
 [Service]
 Type=simple
 User=roflcoptor
 PermissionsStartOnly=true
-ExecStartPre=/bin/mkdir -p /var/run/roflcoptor
-ExecStartPre=/bin/chown roflcoptor /var/run/roflcoptor
+ExecStartPre=/usr/bin/install -o roflcoptor -g roflcoptor -d /var/run/roflcoptor
 ExecStart=/usr/bin/roflcoptor -config /etc/roflcoptor/roflcoptor_config.json
 
 [Install]
