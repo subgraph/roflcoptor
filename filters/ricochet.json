@@ -1,7 +1,7 @@
 {
+    "Name": "ricochet",
     "AuthNetAddr" : "unix",
     "AuthAddr" : "/var/run/roflcoptor/ricochet.socket",
-    "exec-path": "/usr/sbin/oz-daemon",
     "client-allowed" : ["SETEVENTS SIGNAL CONF_CHANGED",
 			"GETCONF __owningcontrollerprocess",
 			"GETINFO version",

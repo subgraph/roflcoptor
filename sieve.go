@@ -13,10 +13,9 @@ import (
 
 // SievePolicyJSONConfig defines the bidirectional filtration policy
 type SievePolicyJSONConfig struct {
+	Name        string
 	AuthNetAddr string `json:"AuthNetAddr"`
 	AuthAddr    string `json:"AuthAddr"`
-	ExecPath    string `json:"exec-path"`
-	UserID      int    `json:"user-id",omitempty`
 
 	ClientAllowed             []string          `json:"client-allowed"`
 	ClientAllowedPrefixes     []string          `json:"client-allowed-prefixes"`
@@ -209,7 +208,7 @@ func (p *PolicyList) LoadFilters(directoryPath string) error {
 						return fmt.Errorf("listener already configured: %s:%s", ff.AuthNetAddr, ff.AuthAddr)
 					}
 				}
-				log.Noticef("Loaded filter for: %s (%d)\n", ff.ExecPath, ff.UserID)
+				log.Noticef("Loaded filter for: %s\n", ff.Name)
 				lf = append([]*SievePolicyJSONConfig(lf), ff)
 				p.loadedFilters = lf
 			}
@@ -237,14 +236,9 @@ func (p *PolicyList) LoadFilterFile(filePath string) (*SievePolicyJSONConfig, er
 			bs += line + "\n"
 		}
 	}
-	f := &SievePolicyJSONConfig{
-		UserID: -1,
-	}
+	f := &SievePolicyJSONConfig{}
 	if err := json.Unmarshal([]byte(bs), f); err != nil {
 		return nil, err
-	}
-	if f.ExecPath == "" {
-		return nil, nil
 	}
 	return f, nil
 }
@@ -275,28 +269,4 @@ func (p *PolicyList) getAuthenticatedPolicyAddresses() (map[AddrString]SievePoli
 		}
 	}
 	return listenerMap, nil
-}
-
-func (p *PolicyList) getFilterForPath(path string) *SievePolicyJSONConfig {
-	for _, filter := range p.loadedFilters {
-		if filter.AuthNetAddr != "" {
-			continue
-		}
-		if filter.ExecPath == path && filter.UserID == -1 {
-			return filter
-		}
-	}
-	return nil
-}
-
-func (p *PolicyList) getFilterForPathAndUID(path string, uid int) *SievePolicyJSONConfig {
-	for _, filter := range p.loadedFilters {
-		if filter.AuthNetAddr != "" {
-			continue
-		}
-		if filter.ExecPath == path && filter.UserID == uid {
-			return filter
-		}
-	}
-	return nil
 }

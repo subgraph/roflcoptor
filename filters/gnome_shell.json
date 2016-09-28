@@ -1,5 +1,7 @@
 {
-    "exec-path": "/usr/bin/gnome-shell",
+    "Name": "gnome-shell-torstatus",
+    "AuthNetAddr" : "tcp",
+    "AuthAddr" : "127.0.0.1:9051",
     "client-allowed" : ["GETINFO status/bootstrap-phase", "SIGNAL NEWNYM"],
     "client-allowed-prefixes" : [],
     "client-replacements" : {},
