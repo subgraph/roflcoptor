@@ -192,20 +192,8 @@ func (s *ProxySession) TorVersion() string {
 }
 
 func (s *ProxySession) appConnWrite(fromServer bool, b []byte) (int, error) {
-	var appName, prefix string
-	appName = s.policy.Name
-
-	if fromServer {
-		prefix = appName + "S->C:"
-	} else if s.isPreAuth {
-		prefix = appName + "P->C [PreAuth]:"
-	} else {
-		prefix = appName + "P->C:"
-	}
-
 	s.appConnWriteLock.Lock()
 	defer s.appConnWriteLock.Unlock()
-	log.Debugf("%s %q", prefix, b)
 	return s.appConn.Write(b)
 }
 
@@ -213,16 +201,7 @@ func (s *ProxySession) appConnReadLine() (cmd string, splitCmd []string, rawLine
 	if rawLine, err = s.appConnReader.ReadBytes('\n'); err != nil {
 		return
 	}
-	appName := s.policy.Name
-	var prefix string
-	if s.isPreAuth {
-		prefix = appName + "C [PreAuth]:"
-	} else {
-		prefix = appName + "C:"
-	}
 	trimmedLine := bytes.TrimSpace(rawLine)
-	log.Debugf("%s %s", prefix, trimmedLine)
-
 	splitCmd = strings.Split(string(trimmedLine), " ")
 	cmd = strings.ToUpper(strings.TrimSpace(splitCmd[0]))
 	return
@@ -346,13 +325,17 @@ func (s *ProxySession) proxyFilterTorToApp() {
 			break
 		}
 		responseStr := strings.Join(response.RawLines, "\r\n")
+		redactedResponse := responseStr
+		if strings.Contains(responseStr, "250-PrivateKey=") {
+			redactedResponse = "<redacted becuase response contained private key blob>"
+		}
 		if s.watch && s.policy == nil {
-			log.Infof("watch-mode: %s A<-T: [%q]\n", appName, responseStr)
+			log.Infof("watch-mode: %s A<-T: [%q]\n", appName, redactedResponse)
 			_, err = s.appConnWrite(true, []byte(responseStr))
 		} else {
 			outputMessage := s.serverSieve.Filter(responseStr)
 			if outputMessage == "" {
-				log.Errorf("filter policy for %s DENY: A<-T: [%q]\n", s.policy.Name, responseStr)
+				log.Errorf("filter policy for %s DENY: A<-T: [%q]\n", s.policy.Name, redactedResponse)
 			} else {
 				_, err = s.appConnWrite(true, []byte(outputMessage+"\r\n"))
 			}
@@ -385,8 +368,14 @@ func (s *ProxySession) proxyFilterAppToTor() {
 			s.errChan <- err
 			break
 		}
+		redactedCommand := cmdLine
+		if cmd == "ADD_ONION" {
+			keytype, _, onionPort, localPort, _ := s.dissectOnion(cmdLine)
+			redactedCommand = fmt.Sprintf("ADD_ONION %s:<redacted_key> %s,%s", keytype, onionPort, localPort)
+		}
+
 		if s.watch && s.policy == nil {
-			log.Infof("watch-mode: %s A->T: [%s]\n", appName, cmdLine)
+			log.Infof("watch-mode: %s A->T: [%s]\n", appName, redactedCommand)
 			_, err = s.torConn.Write([]byte(raw))
 		} else {
 			if cmd == cmdProtocolInfo {
@@ -400,7 +389,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 
 			outputMessage := s.clientSieve.Filter(cmdLine)
 			if outputMessage == "" {
-				log.Errorf("filter policy for %s DENY: A->T: [%s]\n", s.policy.Name, cmdLine)
+				log.Errorf("filter policy for %s DENY: A->T: [%s]\n", s.policy.Name, redactedCommand)
 				_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
 				continue
 			} else {
@@ -411,7 +400,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 					ok := s.shouldAllowOnion(cmdLine)
 					if !ok {
 						_, err = s.appConnWrite(false, []byte("510 Tor Control proxy ADD_ONION denied.\r\n"))
-						log.Errorf("Denied A->T: [%s]\n", cmdLine)
+						log.Errorf("Denied A->T: [%s]\n", redactedCommand)
 						log.Error("Attempt to use ADD_ONION with a control port as target.")
 						if err != nil {
 							s.errChan <- err
@@ -420,7 +409,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 					} else {
 						if s.policy.OzForwardOnion == true {
 							if s.policy.OzApp == "" {
-								log.Errorf("Missing Oz profile name, filter policy syntax error on %s so DENY: A->T: [%s]\n", s.policy.Name, cmdLine)
+								log.Errorf("Missing Oz profile name, filter policy syntax error on %s so DENY: A->T: [%s]\n", s.policy.Name, redactedCommand)
 								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
 								if err != nil {
 									s.errChan <- err
@@ -429,7 +418,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 							}
 							id, err := s.findOzSandbox(s.policy.OzApp)
 							if err != nil {
-								log.Errorf("Could not lookup %s sandbox ID for %s so DENY: A->T: [%s]\n", s.policy.OzApp, s.policy.Name, cmdLine)
+								log.Errorf("Could not lookup %s sandbox ID for %s so DENY: A->T: [%s]\n", s.policy.OzApp, s.policy.Name, redactedCommand)
 								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
 								if err != nil {
 									s.errChan <- err
@@ -446,7 +435,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 								continue
 							}
 
-							log.Noticef("ADD_ONION request for %s: %s", s.policy.OzApp, cmdLine)
+							log.Noticef("ADD_ONION request for %s: %s", s.policy.OzApp, redactedCommand)
 							log.Noticef("Requesting new forwarder from Oz for %d, %s, %s", id, s.policy.OzAppForwarderName, localPort)
 							socketPath, err := s.requestOzForwarder(id, s.policy.OzAppForwarderName, localPort)
 							if err != nil {
@@ -458,11 +447,18 @@ func (s *ProxySession) proxyFilterAppToTor() {
 								continue
 							}
 							log.Noticef("Oz dynamic forwarder %s for %s sandbox %d created: %s => 127.0.0.1:%s", s.policy.OzAppForwarderName, s.policy.OzApp, id, socketPath, localPort)
+							// XXX TODO preserve flags if passed
+							// XXX
+							// The syntax is:
+							// "ADD_ONION" SP KeyType ":" KeyBlob
+							//         [SP "Flags=" Flag *("," Flag)]
+							//         1*(SP "Port=" VirtPort ["," Target]) CRLF
 							newOut := "ADD_ONION " + keytype + ":" + keyblob + " Port=" + onionPort + "," + "unix:" + socketPath
 							outputMessage = newOut
-							log.Noticef("rewrote ADD_ONION with %s", newOut)
+							redactedOutput := "ADD_ONION " + keytype + ":" + "<redacted key>" + " Port=" + onionPort + "," + "unix:" + socketPath
+							log.Noticef("rewrote ADD_ONION with %s", redactedOutput)
 						}
-						log.Noticef("allowed ADD_ONION with %s", outputMessage)
+						log.Noticef("allowed ADD_ONION with %s", redactedCommand)
 					}
 				}
 				// send command to tor
@@ -531,7 +527,7 @@ func (s *ProxySession) dissectOnion(command string) (keytype, keyblob, onionPort
 	ports := ""
 	m := addOnionRegexp.FindStringSubmatch(command)
 	if m == nil {
-		return "", "", "", "", fmt.Errorf("Error extracting ports from %s\n", command)
+		return "", "", "", "", errors.New("Error ADD_ONION command doesn't match regex\n")
 	}
 	for i, name := range addOnionRegexp.SubexpNames() {
 		if name == "ports" {
@@ -542,8 +538,9 @@ func (s *ProxySession) dissectOnion(command string) (keytype, keyblob, onionPort
 			keyblob = m[i]
 		}
 	}
+	redactedCommand := fmt.Sprintf("ADD_ONION %s:<redacted_key> %s", keytype, ports)
 	if ports == "" {
-		return "", "", "", "", fmt.Errorf("Error extracting ports from %s\n", command)
+		return "", "", "", "", fmt.Errorf("Error extracting ports from %s\n", redactedCommand)
 	}
 
 	fields := strings.Split(ports, ",")
@@ -566,7 +563,7 @@ func (s *ProxySession) dissectOnion(command string) (keytype, keyblob, onionPort
 			onionPort = ports[1:len(ports)]
 			localPort = ports[1:len(ports)]
 		} else {
-			return "", "", "", "", fmt.Errorf("Bad ADD_ONION command string: %s\n", command)
+			return "", "", "", "", fmt.Errorf("Bad ADD_ONION command string: %s\n", redactedCommand)
 		}
 	}
 	return keytype, keyblob, onionPort, localPort, nil
