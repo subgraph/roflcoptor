@@ -370,8 +370,12 @@ func (s *ProxySession) proxyFilterAppToTor() {
 		}
 		redactedCommand := cmdLine
 		if cmd == "ADD_ONION" {
-			keytype, _, onionPort, localPort, _ := s.dissectOnion(cmdLine)
-			redactedCommand = fmt.Sprintf("ADD_ONION %s:<redacted_key> %s,%s", keytype, onionPort, localPort)
+			keytype, _, flags, onionPort, localPort, _ := s.dissectOnion(cmdLine)
+			redactedCommand := "ADD_ONION " + keytype + ":" + "<redacted key>" +
+				flags + " Port=" + onionPort + ","
+			if len(localPort) > 0 {
+				redactedCommand = redactedCommand + "127.0.0.1:" + localPort
+			}
 		}
 
 		if s.watch && s.policy == nil {
@@ -425,7 +429,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 								}
 								continue
 							}
-							keytype, keyblob, onionPort, localPort, err := s.dissectOnion(cmdLine)
+							keytype, keyblob, flags, onionPort, localPort, err := s.dissectOnion(cmdLine)
 							if err != nil {
 								log.Errorf("Error parsing ADD_ONION command.")
 								_, err = s.appConnWrite(false, []byte("510 Tor Control command proxy denied: filtration policy.\r\n"))
@@ -447,15 +451,14 @@ func (s *ProxySession) proxyFilterAppToTor() {
 								continue
 							}
 							log.Noticef("Oz dynamic forwarder %s for %s sandbox %d created: %s => 127.0.0.1:%s", s.policy.OzAppForwarderName, s.policy.OzApp, id, socketPath, localPort)
-							// XXX TODO preserve flags if passed
-							// XXX
 							// The syntax is:
 							// "ADD_ONION" SP KeyType ":" KeyBlob
 							//         [SP "Flags=" Flag *("," Flag)]
 							//         1*(SP "Port=" VirtPort ["," Target]) CRLF
-							newOut := "ADD_ONION " + keytype + ":" + keyblob + " Port=" + onionPort + "," + "unix:" + socketPath
+							newOut := "ADD_ONION " + keytype + ":" + keyblob + flags + " Port=" + onionPort + "," + "unix:" + socketPath
 							outputMessage = newOut
-							redactedOutput := "ADD_ONION " + keytype + ":" + "<redacted key>" + " Port=" + onionPort + "," + "unix:" + socketPath
+							redactedOutput := "ADD_ONION " + keytype + ":" + "<redacted key>" +
+								flags + " Port=" + onionPort + "," + "unix:" + socketPath
 							log.Noticef("rewrote ADD_ONION with %s", redactedOutput)
 						}
 						log.Noticef("allowed ADD_ONION with %s", redactedCommand)
@@ -472,7 +475,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 }
 
 // ADD_ONION filtration -
-var addOnionRegexp = regexp.MustCompile("ADD_ONION (?P<keytype>[^ ]+):(?P<keyblob>[^ ]+) Port=(?P<ports>[^ ]+)")
+var addOnionRegexp = regexp.MustCompile("ADD_ONION (?P<keytype>[^ ]+):(?P<keyblob>[^ ]+)(?P<flags> Flags=[^ ]+)? Port=(?P<ports>[^ ]+)")
 
 // shouldAllowOnion implements our deny policy for ADD_ONION.
 // If the application filter policy specified an allow rule
@@ -522,15 +525,18 @@ func (s *ProxySession) shouldAllowOnion(command string) bool {
 	return false
 }
 
-func (s *ProxySession) dissectOnion(command string) (keytype, keyblob, onionPort, localPort string, err error) {
+func (s *ProxySession) dissectOnion(command string) (keytype, keyblob, flags, onionPort, localPort string, err error) {
 	target := ""
 	ports := ""
 	m := addOnionRegexp.FindStringSubmatch(command)
 	if m == nil {
-		return "", "", "", "", errors.New("Error ADD_ONION command doesn't match regex\n")
+		return "", "", "", "", "", errors.New("Error ADD_ONION command doesn't match regex\n")
 	}
 	for i, name := range addOnionRegexp.SubexpNames() {
-		if name == "ports" {
+		if name == "flags" {
+			flags = m[i]
+			fmt.Println("FLAGS", flags)
+		} else if name == "ports" {
 			ports = m[i]
 		} else if name == "keytype" {
 			keytype = m[i]
@@ -540,7 +546,7 @@ func (s *ProxySession) dissectOnion(command string) (keytype, keyblob, onionPort
 	}
 	redactedCommand := fmt.Sprintf("ADD_ONION %s:<redacted_key> %s", keytype, ports)
 	if ports == "" {
-		return "", "", "", "", fmt.Errorf("Error extracting ports from %s\n", redactedCommand)
+		return "", "", "", "", "", fmt.Errorf("Error extracting ports from %s\n", redactedCommand)
 	}
 
 	fields := strings.Split(ports, ",")
@@ -550,7 +556,7 @@ func (s *ProxySession) dissectOnion(command string) (keytype, keyblob, onionPort
 		targetSplit := strings.Split(target, ":")
 		if len(targetSplit) == 2 {
 			if targetSplit[0] != "127.0.0.1" {
-				return "", "", "", "", fmt.Errorf("Unimplemented: forwarding to non-localhost target %s\n", target)
+				return "", "", "", "", "", fmt.Errorf("Unimplemented: forwarding to non-localhost target %s\n", target)
 			} else {
 				localPort = targetSplit[1]
 			}
@@ -563,10 +569,10 @@ func (s *ProxySession) dissectOnion(command string) (keytype, keyblob, onionPort
 			onionPort = ports[1:len(ports)]
 			localPort = ports[1:len(ports)]
 		} else {
-			return "", "", "", "", fmt.Errorf("Bad ADD_ONION command string: %s\n", redactedCommand)
+			return "", "", "", "", "", fmt.Errorf("Bad ADD_ONION command string: %s\n", redactedCommand)
 		}
 	}
-	return keytype, keyblob, onionPort, localPort, nil
+	return keytype, keyblob, flags, onionPort, localPort, nil
 }
 
 func (s *ProxySession) isAddrDenied(net, addr string) bool {
