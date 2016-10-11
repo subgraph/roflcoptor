@@ -4,17 +4,19 @@ ROFLCopTor aims to be a comprehensive Tor control port filter daemon written in 
 
 # Introduction
 
-The Tor control port exposes powerful functionality, much more authority than most
-applications need when they talk to the Tor control port. In accordance with the
-principal of least authority each software module would ideally have authority
-over only the resources needed to perform its tasks. Here in the context of ROFLCopTor,
-we seek to eliminate excess authority from applications which utilize the Tor control port,
-therefore they will not be in the debian-tor group or otherwise have access to the tor
-control port UNIX domain socket or TCP listener. The only available access to the tor control
-port being via ROFLCoptor which exposes a TCP listener and or a UNIX domain socket. Applications
-can be allowed to authenticate with ROFLCoptor but this isn't necessary because the filtration
-policy is applied based on the client application's exec path which is discovered by matching
-the socket inode via the Linux proc filesystem.
+The Tor control port exposes powerful functionality, much more
+authority than most applications need when they talk to the Tor
+control port. In accordance with the principal of least authority each
+software module would ideally have authority over only the resources
+needed to perform its tasks. Here in the context of ROFLCopTor, we
+seek to eliminate excess authority from applications which utilize the
+Tor control port, therefore they will not be in the debian-tor group
+or otherwise have access to the tor control port UNIX domain socket or
+TCP listener. The only available access to the tor control port being
+via ROFLCoptor which exposes a TCP listener and or a UNIX domain
+socket listeners.  Each listener has a filtration policy which is
+applied for bidirectional filtration of Tor control port commands and
+responses.
 
 # Usage
 
@@ -36,22 +38,20 @@ Normally watch-mode is only used when creating new filter rule sets.
 
 Until a debian package does this automatically, here are the steps to manually set things up.
 
-First, create a new user, and put it in the procsnitch group.
+First, create a new user.
 
 ```
 adduser --system --group --disabled-password --disabled-login --home /etc/roflcoptor/ --no-create-home --quiet roflcoptor
-usermod -G procsnitch,debian-tor roflcoptor
 ```
 
-In this configuration example tor's control port is NOT set to TCP port 9051, but instead
-listens on a UNIX domain socket which only the debian-tor group has read/write access to,
-therefore the ``roflcoptor`` user must be in the debian-tor group. Being a member of the
-``procsnitch`` group ensures we can read its UNIX domain socket as well. After
-running the above commands, `grep roflcoptor /etc/group` should look like this:
+In this configuration example tor's control port is NOT set to TCP
+port 9051, but instead listens on a UNIX domain socket which only the
+debian-tor group has read/write access to, therefore the
+``roflcoptor`` user must be in the debian-tor group. After running the
+above commands, `grep roflcoptor /etc/group` should look like this:
 
 ```
 debian-tor:x:111:roflcoptor
-procsnitch:x:999:roflcoptor
 roflcoptor:x:119:
 ```
 
@@ -109,7 +109,6 @@ The json configuration file, /etc/roflcoptor/roflcoptor_config.json should look 
 
 ```
 {
-    "ProcSnitchSocketFile" : "/var/run/procsnitchd/rpc.socket",
     "FiltersPath" : "/etc/roflcoptor/filters",
     "TorControlNet" : "unix",
     "TorControlAddress" : "/var/run/tor/control",
@@ -126,11 +125,6 @@ The json configuration file, /etc/roflcoptor/roflcoptor_config.json should look 
 }
 ```
 
-
-The above mentioned ``ProcSnitchSocketFile`` refers to the UNIX domain socket which the procsnitch daemon is listening.
-Procsnitch daemon is essentially a privilege seperation component of roflcoptor.
-
-Please see https://github.com/subgraph/procsnitchd
 
 
 # Acknowledgements
