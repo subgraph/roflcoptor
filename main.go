@@ -25,7 +25,6 @@ import (
 	"unsafe"
 
 	"github.com/op/go-logging"
-	"github.com/subgraph/procsnitchd/client"
 )
 
 var log = logging.MustGetLogger("roflcoptor")
@@ -79,12 +78,8 @@ func setupLoggerBackend(level logging.Level) logging.LeveledBackend {
 // RoflcoptorConfig is used to configure our
 // tor contorl port filtering proxy daemon
 type RoflcoptorConfig struct {
-	// ProcSnitchSocketFile is the UNIX domain socket on which procsnitchd listens
-	ProcSnitchSocketFile string
 	// FiltersPath is the directory where filter rules are kept
 	FiltersPath string
-	// Listeners for non-Oz applications
-	Listeners []AddrString
 	// TorControlNet network for tor control port
 	TorControlNet string
 	// TorControlNet address for tor control port
@@ -159,15 +154,7 @@ func main() {
 	signal.Notify(sigKillChan, os.Interrupt, os.Kill)
 
 	log.Notice("roflcoptor startup!")
-	procsnitchClient := client.NewSnitchClient(config.ProcSnitchSocketFile, nil)
-	err = procsnitchClient.Start()
-	if err != nil {
-		log.Criticalf("procsnitchClient failed to connect: %s", err)
-		return
-	}
-	defer procsnitchClient.Stop()
-
-	proxyListener := NewProxyListener(config, watchMode, procsnitchClient)
+	proxyListener := NewProxyListener(config, watchMode)
 	proxyListener.StartListeners()
 	defer proxyListener.StopListeners()
 	for {

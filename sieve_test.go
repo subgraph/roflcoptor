@@ -105,13 +105,6 @@ func TestLoadFilters(t *testing.T) {
 		t.Fail()
 	}
 
-	// we have no policies loaded so this should fail
-	policy := p.getFilterForPath("not_an_existent_exec_path")
-	if policy != nil {
-		t.Errorf("getFilterForPath should have err`ed")
-		t.Fail()
-	}
-
 	invalidContent := []byte("temporary file's content")
 	validContent := []byte(`
 {
@@ -149,19 +142,6 @@ func TestLoadFilters(t *testing.T) {
 	err = p.LoadFilters(dir)
 	if err != nil {
 		t.Errorf("LoadFilters should have succeeded")
-		t.Fail()
-	}
-
-	// we have no policies with this exec path; should fail
-	policy = p.getFilterForPath("not_an_existent_exec_path")
-	if policy != nil {
-		t.Errorf("getFilterForPath should have err`ed")
-		t.Fail()
-	}
-
-	policy = p.getFilterForPathAndUID("/usr/bin/firefox", 123)
-	if policy == nil {
-		t.Errorf("getFilterForPathAndUID should have succeeded")
 		t.Fail()
 	}
 

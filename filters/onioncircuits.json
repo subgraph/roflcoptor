@@ -1,5 +1,5 @@
 {
-    "exec-path" : "/usr/sbin/oz-daemon",
+    "Name" : "onioncircuits",
     "AuthNetAddr" : "unix",
     "AuthAddr" : "/var/run/roflcoptor/onioncircuits.socket",
     "client-allowed" : [
