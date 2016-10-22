@@ -187,6 +187,12 @@ func (s *ProxySession) initTorControl() error {
 	return nil
 }
 
+func (s *ProxySession) Close() {
+	s.appConn.Close()
+	s.torConn.Close()
+	s.Done()
+}
+
 func (s *ProxySession) TorVersion() string {
 	return s.protoInfo.TorVersion
 }
@@ -315,7 +321,7 @@ func (s *ProxySession) sessionWorker() {
 // pass if there is an allow rule otherwise we send nothing.
 // If watch-mode is enabled we pass the message through.
 func (s *ProxySession) proxyFilterTorToApp() {
-	defer s.Done()
+	defer s.Close()
 	appName := s.policy.Name
 
 	for {
@@ -358,7 +364,7 @@ func (s *ProxySession) proxyFilterTorToApp() {
 //
 // If watch-mode is enabled we pipeline messages without filtration.
 func (s *ProxySession) proxyFilterAppToTor() {
-	defer s.Done()
+	defer s.Close()
 	appName := ""
 
 	for {
