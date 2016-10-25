@@ -377,7 +377,7 @@ func (s *ProxySession) proxyFilterAppToTor() {
 		redactedCommand := cmdLine
 		if cmd == "ADD_ONION" {
 			keytype, _, flags, onionPort, localPort, _ := s.dissectOnion(cmdLine)
-			redactedCommand := "ADD_ONION " + keytype + ":" + "<redacted key>" +
+			redactedCommand = "ADD_ONION " + keytype + ":" + "<redacted key>" +
 				flags + " Port=" + onionPort + ","
 			if len(localPort) > 0 {
 				redactedCommand = redactedCommand + "127.0.0.1:" + localPort
