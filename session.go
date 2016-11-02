@@ -333,7 +333,7 @@ func (s *ProxySession) proxyFilterTorToApp() {
 		responseStr := strings.Join(response.RawLines, "\r\n")
 		redactedResponse := responseStr
 		if strings.Contains(responseStr, "250-PrivateKey=") {
-			redactedResponse = "<redacted becuase response contained private key blob>"
+			redactedResponse = "<redacted because response contained private key blob>"
 		}
 		if s.watch && s.policy == nil {
 			log.Infof("watch-mode: %s A<-T: [%q]\n", appName, redactedResponse)
