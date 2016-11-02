@@ -2,11 +2,8 @@ Source: roflcoptor
 Section: devel
 Priority: extra
 Maintainer: David Mirza Ahmad <dma@subgraph.com>
-Build-Depends: debhelper (>= 9),
-               dh-golang,
-	       dh-systemd,
-               golang-go
-Standards-Version: 3.9.6
+Build-Depends: debhelper (>= 9), dh-golang, dh-systemd, golang-go
+Standards-Version: 3.9.8
 Homepage: https://github.com/subgraph/roflcoptor
 Vcs-Git: https://github.com/subgraph/roflcoptor.git
 XS-Go-Import-Path: github.com/subgraph/roflcoptor
@@ -14,7 +11,10 @@ XS-Go-Import-Path: github.com/subgraph/roflcoptor
 Package: roflcoptor
 Architecture: any
 Built-Using: ${misc:Built-Using}
-Depends: tor, ${shlibs:Depends},
-         ${misc:Depends}
-Description: ROFLCopTor aims to be a comprehensive Tor control port filter daemon written in golang.
+Depends: tor, adduser, ${shlibs:Depends}, ${misc:Depends}
+Description: A comprehensive Tor control port filter
+ Comprenhensive daemon written in golang that is used
+ to filter the Tor control port, thus allowing certain
+ program access to specific control commands (ex: NEW_NYMS)
+ while denying access to potentially harmful commands.
 

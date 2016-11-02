@@ -14,3 +14,6 @@ override_dh_auto_install:
 override_dh_auto_test:
 	@echo skipped auto test
 
+# We only include a systemd service unit
+override_dh_installinit:
+	@echo skipped init.d install

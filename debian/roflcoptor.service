@@ -1,5 +1,6 @@
 [Unit]
 Description=roflcoptor - onion router control port filtration daemon
+Documentation=https://github.com/subgraph/roflcoptor
 Requires=tor.service
 
 [Service]

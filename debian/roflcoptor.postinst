@@ -35,14 +35,6 @@ else
 	deb-systemd-helper update-state roflcoptor.service >/dev/null || true
 fi
 # End automatically added section
-# Automatically added by dh_installinit
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ]; then
-	if [ -x "/etc/init.d/roflcoptor" ]; then
-		update-rc.d roflcoptor defaults >/dev/null
-		invoke-rc.d roflcoptor start || exit $?
-	fi
-fi
-# End automatically added section
 # Automatically added by dh_systemd_start
 if [ -d /run/systemd/system ]; then
 	systemctl --system daemon-reload >/dev/null || true
@@ -50,3 +42,6 @@ if [ -d /run/systemd/system ]; then
 fi
 # End automatically added section
 
+#DEBHELPER#
+
+exit 0
