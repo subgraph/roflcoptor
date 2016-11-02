@@ -1,0 +1,57 @@
+roflcoptor (0.7-1) unstable; urgency=medium
+
+  * Overlay packaging.
+
+ -- David Mirza Ahmad <dma@subgraph.com>  wed, 2 Nov 2016 00:00:00 +0000
+
+roflcoptor (0.6-1) unstable; urgency=medium
+
+  * Remove procsnitchd package, systemd dependency
+  * Fix FD leak
+
+ -- David Mirza Ahmad <dma@subgraph.com>  Mon, 24 Oct 2016 02:00:00 +0000
+
+roflcoptor (0.5-1) unstable; urgency=medium
+
+  * Remove procsnitchd entirely
+  * Add "names" to filter policies
+  * Redact sensitive information that was mistakenly left logged, incuding key blobs
+
+ -- David Mirza Ahmad <dma@subgraph.com>  Tue, 11 Oct 2016 03:32:00 +0000
+
+roflcoptor (0.4-3) unstable; urgency=medium
+
+  * Update onionshare policy to include stupid variations of SETEVENTS requests.
+
+ -- David Mirza Ahmad <dma@subgraph.com>  Thu, 7 Oct 2016 02:08:00 +0000
+
+roflcoptor (0.4-2) unstable; urgency=medium
+
+  * Fix preinst to remove onionshare.json, which is installed for early roflcoptor users but since renamed.
+
+ -- David Mirza Ahmad <dma@subgraph.com>  Mon, 19 Sep 2016 18:17:00 +0000
+
+roflcoptor (0.4-1) unstable; urgency=medium
+
+  * Updated packaging metadata.
+
+ -- David Mirza Ahmad <dma@subgraph.com>  Fri, 16 Sep 2016 18:40:00 +0000
+
+roflcoptor (0.3-1) unstable; urgency=medium
+
+  * Ephemeral hidden service support with oz integration. Upated packaging metadata.
+
+ -- David Mirza Ahmad <dma@subgraph.com>  Tue, 13 Sep 2016 23:24:00 +0000
+
+roflcoptor (0.2-1) unstable; urgency=medium
+
+  * Various bugfixes
+
+ -- David Mirza Ahmad <dma@subgraph.com>  Sat, 3 Sep 2016 05:01:01 +0000
+
+roflcoptor (0.1-1) unstable; urgency=medium
+
+  * Initial release. 
+
+ -- David Mirza Ahmad <dma@subgraph.com>  Mon, 14 Aug 2016 04:47:31 +0000
+

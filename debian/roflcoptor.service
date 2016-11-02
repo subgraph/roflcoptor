@@ -1,0 +1,13 @@
+[Unit]
+Description=roflcoptor - onion router control port filtration daemon
+Requires=tor.service
+
+[Service]
+Type=simple
+User=roflcoptor
+PermissionsStartOnly=true
+ExecStartPre=/usr/bin/install -o roflcoptor -g roflcoptor -d /var/run/roflcoptor
+ExecStart=/usr/bin/roflcoptor -config /etc/roflcoptor/roflcoptor_config.json
+
+[Install]
+WantedBy=multi-user.target

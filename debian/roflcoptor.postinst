@@ -1,0 +1,52 @@
+#!/bin/sh
+set -e
+# script version: 2
+
+case "$1" in
+    configure)
+	if ! getent passwd roflcoptor > /dev/null ; then
+		echo "No roflcoptor user found: adding.."
+		adduser --system --group --disabled-password --disabled-login --home /etc/roflcoptor/ --no-create-home --quiet roflcoptor
+	fi
+	usermod -G debian-tor roflcoptor
+	;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 0
+    ;;
+esac
+
+
+# Automatically added by dh_systemd_enable
+# This will only remove masks created by d-s-h on package removal.
+deb-systemd-helper unmask roflcoptor.service >/dev/null || true
+
+# was-enabled defaults to true, so new installations run enable.
+if deb-systemd-helper --quiet was-enabled roflcoptor.service; then
+	# Enables the unit on first installation, creates new
+	# symlinks on upgrades if the unit file has changed.
+	deb-systemd-helper enable roflcoptor.service >/dev/null || true
+else
+	# Update the statefile to add new symlinks (if any), which need to be
+	# cleaned up on purge. Also remove old symlinks.
+	deb-systemd-helper update-state roflcoptor.service >/dev/null || true
+fi
+# End automatically added section
+# Automatically added by dh_installinit
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ]; then
+	if [ -x "/etc/init.d/roflcoptor" ]; then
+		update-rc.d roflcoptor defaults >/dev/null
+		invoke-rc.d roflcoptor start || exit $?
+	fi
+fi
+# End automatically added section
+# Automatically added by dh_systemd_start
+if [ -d /run/systemd/system ]; then
+	systemctl --system daemon-reload >/dev/null || true
+	deb-systemd-invoke start roflcoptor.service >/dev/null || true
+fi
+# End automatically added section
+

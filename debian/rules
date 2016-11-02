@@ -1,0 +1,16 @@
+#!/usr/bin/make -f
+#export DH_VERBOSE=1
+
+export DH_OPTIONS
+export DH_GOPKG := github.com/subgraph/roflcoptor
+
+%:
+	dh $@ --buildsystem=golang --with=golang,systemd
+
+override_dh_auto_install:
+	dh_auto_install
+	rm -rf $(CURDIR)/debian/roflcoptor/usr/share/gocode
+
+override_dh_auto_test:
+	@echo skipped auto test
+

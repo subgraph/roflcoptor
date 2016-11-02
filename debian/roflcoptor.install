@@ -1,0 +1,6 @@
+roflcoptor_config.json /etc/roflcoptor
+filters/gnome_shell.json /etc/roflcoptor/filters
+filters/tbb.json /etc/roflcoptor/filters
+filters/onioncircuits.json /etc/roflcoptor/filters
+filters/onionshare-gui.json /etc/roflcoptor/filters
+filters/ricochet.json /etc/roflcoptor/filters
