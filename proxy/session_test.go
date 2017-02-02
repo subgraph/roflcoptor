@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import (
 	"bufio"
@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/subgraph/roflcoptor/common"
+	"github.com/subgraph/roflcoptor/filter"
 	"github.com/subgraph/roflcoptor/service"
 	"github.com/yawning/bulb"
 )
@@ -115,7 +117,7 @@ func setupProxyTest(proxyNet, proxyAddress string) (*ProxyListener, *Accumulatin
 		panic(err)
 	}
 
-	config := RoflcoptorConfig{
+	config := common.RoflcoptorConfig{
 		FiltersPath:       filterDir,
 		TorControlNet:     "unix",
 		TorControlAddress: "test_tor_socket",
@@ -257,8 +259,8 @@ func TestBadAddressTorControlPort(t *testing.T) {
 	var conn net.Conn
 	torControlNet := "unix"
 	torControlAddress := "123"
-	denyOnions := []AddrString{}
-	policy := &SievePolicyJSONConfig{}
+	denyOnions := []common.AddrString{}
+	policy := &filter.SievePolicyJSONConfig{}
 	session := NewAuthProxySession(conn, torControlNet, torControlAddress, denyOnions, false, policy)
 
 	err := session.initTorControl()
@@ -270,7 +272,7 @@ func TestBadAddressTorControlPort(t *testing.T) {
 
 func TestNoProtocolInfoTorControlPort(t *testing.T) {
 	fmt.Println("TestNoProtocolInfoTorControlPort")
-	config := RoflcoptorConfig{
+	config := common.RoflcoptorConfig{
 		FiltersPath:       "./filters",
 		TorControlNet:     "unix",
 		TorControlAddress: "test_tor_socket",
@@ -281,8 +283,8 @@ func TestNoProtocolInfoTorControlPort(t *testing.T) {
 	defer fakeTorService.Stop()
 
 	var conn net.Conn
-	denyOnions := []AddrString{}
-	policy := &SievePolicyJSONConfig{}
+	denyOnions := []common.AddrString{}
+	policy := &filter.SievePolicyJSONConfig{}
 	session := NewAuthProxySession(conn, config.TorControlNet, config.TorControlAddress, denyOnions, false, policy)
 	err := session.initTorControl()
 	if err == nil {
@@ -294,7 +296,7 @@ func TestNoProtocolInfoTorControlPort(t *testing.T) {
 
 func TestNoAuthenticateTorControlPort(t *testing.T) {
 	fmt.Println("TestNoAuthenticateTorControlPort")
-	config := RoflcoptorConfig{
+	config := common.RoflcoptorConfig{
 		FiltersPath:       "./filters",
 		TorControlNet:     "unix",
 		TorControlAddress: "test_tor_socket",
@@ -305,8 +307,8 @@ func TestNoAuthenticateTorControlPort(t *testing.T) {
 	defer fakeTorService.Stop()
 
 	var conn net.Conn
-	denyOnions := []AddrString{}
-	policy := &SievePolicyJSONConfig{}
+	denyOnions := []common.AddrString{}
+	policy := &filter.SievePolicyJSONConfig{}
 	session := NewAuthProxySession(conn, config.TorControlNet, config.TorControlAddress, denyOnions, false, policy)
 	err := session.initTorControl()
 	if err == nil {
@@ -319,11 +321,11 @@ func TestNoAuthenticateTorControlPort(t *testing.T) {
 func TestShouldAllowOnion(t *testing.T) {
 	fmt.Println("TestShouldAllowOnion")
 	var conn net.Conn
-	denyOnions := []AddrString{
+	denyOnions := []common.AddrString{
 		{"unix", "/var/run/tor/control"},
 		{"tcp", "127.0.0.1:9051"},
 	}
-	policy := &SievePolicyJSONConfig{}
+	policy := &filter.SievePolicyJSONConfig{}
 	session := NewAuthProxySession(conn, "meownew", "meowaddr", denyOnions, false, policy)
 
 	tests := []struct {

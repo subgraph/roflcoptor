@@ -1,4 +1,4 @@
-package main
+package proxy
 
 import (
 	"bufio"
@@ -11,9 +11,15 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/op/go-logging"
+	"github.com/subgraph/roflcoptor/common"
+	"github.com/subgraph/roflcoptor/filter"
+	"github.com/subgraph/roflcoptor/ozclient"
 	"github.com/subgraph/roflcoptor/service"
 	"github.com/yawning/bulb"
 )
+
+var log = logging.MustGetLogger("roflcoptor")
 
 const (
 	cmdProtocolInfo  = "PROTOCOLINFO"
@@ -34,21 +40,21 @@ const (
 // dispatches them to worker sessions
 // to implement the filtering proxy pipeline.
 type ProxyListener struct {
-	cfg            *RoflcoptorConfig
+	cfg            *common.RoflcoptorConfig
 	watch          bool
 	authedServices []*service.MortalService
-	onionDenyAddrs []AddrString
+	onionDenyAddrs []common.AddrString
 	errChan        chan error
-	policyList     PolicyList
+	policyList     filter.PolicyList
 }
 
 // NewProxyListener creates a new ProxyListener given
 // a configuration structure.
-func NewProxyListener(cfg *RoflcoptorConfig, watch bool) *ProxyListener {
+func NewProxyListener(cfg *common.RoflcoptorConfig, watch bool) *ProxyListener {
 	p := ProxyListener{
 		cfg:        cfg,
 		watch:      watch,
-		policyList: NewPolicyList(),
+		policyList: filter.NewPolicyList(),
 	}
 	return &p
 }
@@ -80,8 +86,8 @@ func (p *ProxyListener) StopListeners() {
 }
 
 func (p *ProxyListener) compileOnionAddrBlacklist() {
-	p.onionDenyAddrs = p.policyList.getListenerAddresses()
-	p.onionDenyAddrs = append(p.onionDenyAddrs, AddrString{
+	p.onionDenyAddrs = p.policyList.GetListenerAddresses()
+	p.onionDenyAddrs = append(p.onionDenyAddrs, common.AddrString{
 		Net:     p.cfg.TorControlNet,
 		Address: p.cfg.TorControlAddress,
 	})
@@ -91,7 +97,7 @@ func (p *ProxyListener) compileOnionAddrBlacklist() {
 // in it's own goroutine.
 func (p *ProxyListener) initAuthenticatedListeners() {
 
-	locations, err := p.policyList.getAuthenticatedPolicyAddresses()
+	locations, err := p.policyList.GetAuthenticatedPolicyAddresses()
 	if err != nil {
 		log.Criticalf("ProxyListener.initAuthenticatedListeners failure: %s", err)
 		panic(err)
@@ -131,16 +137,16 @@ type ProxySession struct {
 	torControlNet     string
 	torControlAddress string
 
-	addOnionDenyList []AddrString
+	addOnionDenyList []common.AddrString
 
 	isPreAuth bool
 	watch     bool
 
-	policy     *SievePolicyJSONConfig
-	policyList PolicyList
+	policy     *filter.SievePolicyJSONConfig
+	policyList filter.PolicyList
 
-	clientSieve *Sieve
-	serverSieve *Sieve
+	clientSieve *filter.Sieve
+	serverSieve *filter.Sieve
 
 	torConn   *bulb.Conn
 	protoInfo *bulb.ProtocolInfo
@@ -149,7 +155,7 @@ type ProxySession struct {
 
 // NewAuthProxySession creates an instance of ProxySession that is prepared with a previously
 // authenticated policy.
-func NewAuthProxySession(conn net.Conn, torControlNet, torControlAddress string, addOnionDenyList []AddrString, watch bool, policy *SievePolicyJSONConfig) *ProxySession {
+func NewAuthProxySession(conn net.Conn, torControlNet, torControlAddress string, addOnionDenyList []common.AddrString, watch bool, policy *filter.SievePolicyJSONConfig) *ProxySession {
 	s := ProxySession{
 		torControlNet:     torControlNet,
 		torControlAddress: torControlAddress,
@@ -591,7 +597,7 @@ func (s *ProxySession) isAddrDenied(net, addr string) bool {
 }
 
 func (s *ProxySession) findOzSandbox(profile string) (id int, err error) {
-	sandboxes, err := ListSandboxes()
+	sandboxes, err := ozclient.ListSandboxes()
 	if err != nil {
 		return -1, err
 	}
@@ -604,5 +610,5 @@ func (s *ProxySession) findOzSandbox(profile string) (id int, err error) {
 }
 
 func (s *ProxySession) requestOzForwarder(id int, name, port string) (path string, err error) {
-	return AskForwarder(id, name, port)
+	return ozclient.AskForwarder(id, name, port)
 }
