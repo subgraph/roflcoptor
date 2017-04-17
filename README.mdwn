@@ -130,3 +130,24 @@ The json configuration file, /etc/roflcoptor/roflcoptor_config.json should look 
 # Acknowledgements
 
 ROFLCopTor is derived from @Yawning's [or-ctl-filter](https://github.com/Yawning/or-ctl-filter) and @david415's [or-ctl-sieve](https://github.com/david415/or-ctl-sieve) which was derived from collaboration with Leif Ryge in making this proof of concept filter [twistedcat-armfilter-hax](https://github.com/david415/twistedcat/tree/armfilter-hax).
+
+# Building
+
+Building from source is the same as any golang project. Provided with this project is a debian branch
+from which you can build packages:
+
+```
+apt install debhelper dh-golang dh-systemd golang-go tor adduser
+# # To build the Debian package:
+git clone -b debian https://github.com/subgraph/roflcoptor.git
+cd roflcoptor
+## To build from stable
+gbp buildpackage -us -uc
+## To build from head
+git checkout master
+git checkout debian
+gbp buildpackage -us -uc --git-upstream-tree=master
+## Install the package
+dpkg -i /tmp/build-area/roflcoptor-*_amd64.deb
+```
+
