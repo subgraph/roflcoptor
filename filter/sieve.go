@@ -1,4 +1,4 @@
-package main
+package filter
 
 import (
 	"bufio"
@@ -9,7 +9,12 @@ import (
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/op/go-logging"
+	"github.com/subgraph/roflcoptor/common"
 )
+
+var log = logging.MustGetLogger("roflcoptor")
 
 // SievePolicyJSONConfig defines the bidirectional filtration policy
 type SievePolicyJSONConfig struct {
@@ -165,8 +170,6 @@ func (s *Sieve) isCommandAllowed(message string) bool {
 	return false
 }
 
-var commentRegexp = regexp.MustCompile("^[ \t]*#")
-
 // PolicyList represents a list of policies
 type PolicyList struct {
 	loadedFilters []*SievePolicyJSONConfig
@@ -232,7 +235,7 @@ func (p *PolicyList) LoadFilterFile(filePath string) (*SievePolicyJSONConfig, er
 	bs := ""
 	for scanner.Scan() {
 		line := scanner.Text()
-		if !commentRegexp.MatchString(line) {
+		if !common.CommentRegexp.MatchString(line) {
 			bs += line + "\n"
 		}
 	}
@@ -243,11 +246,11 @@ func (p *PolicyList) LoadFilterFile(filePath string) (*SievePolicyJSONConfig, er
 	return f, nil
 }
 
-func (p *PolicyList) getListenerAddresses() []AddrString {
-	addrList := []AddrString{}
+func (p *PolicyList) GetListenerAddresses() []common.AddrString {
+	addrList := []common.AddrString{}
 	for _, filter := range p.loadedFilters {
 		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
-			l := AddrString{
+			l := common.AddrString{
 				Net:     filter.AuthNetAddr,
 				Address: filter.AuthAddr,
 			}
@@ -257,11 +260,11 @@ func (p *PolicyList) getListenerAddresses() []AddrString {
 	return addrList
 }
 
-func (p *PolicyList) getAuthenticatedPolicyAddresses() (map[AddrString]SievePolicyJSONConfig, error) {
-	listenerMap := make(map[AddrString]SievePolicyJSONConfig)
+func (p *PolicyList) GetAuthenticatedPolicyAddresses() (map[common.AddrString]SievePolicyJSONConfig, error) {
+	listenerMap := make(map[common.AddrString]SievePolicyJSONConfig)
 	for _, filter := range p.loadedFilters {
 		if filter.AuthNetAddr != "" && filter.AuthAddr != "" {
-			addrString := AddrString{
+			addrString := common.AddrString{
 				Net:     filter.AuthNetAddr,
 				Address: filter.AuthAddr,
 			}

@@ -15,8 +15,6 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -25,6 +23,8 @@ import (
 	"unsafe"
 
 	"github.com/op/go-logging"
+	"github.com/subgraph/roflcoptor/common"
+	"github.com/subgraph/roflcoptor/proxy"
 )
 
 var log = logging.MustGetLogger("roflcoptor")
@@ -75,48 +75,11 @@ func setupLoggerBackend(level logging.Level) logging.LeveledBackend {
 	return leveler
 }
 
-// RoflcoptorConfig is used to configure our
-// tor contorl port filtering proxy daemon
-type RoflcoptorConfig struct {
-	// FiltersPath is the directory where filter rules are kept
-	FiltersPath string
-	// TorControlNet network for tor control port
-	TorControlNet string
-	// TorControlNet address for tor control port
-	TorControlAddress string
-}
-
-// AddrString represents a network endpoint with two strings
-type AddrString struct {
-	Net     string
-	Address string
-}
-
-func loadConfiguration(configFilePath string) (*RoflcoptorConfig, error) {
-	config := RoflcoptorConfig{}
-	file, err := os.Open(configFilePath)
-	if err != nil {
-		return nil, err
-	}
-	scanner := bufio.NewScanner(file)
-	bs := ""
-	for scanner.Scan() {
-		line := scanner.Text()
-		if !commentRegexp.MatchString(line) {
-			bs += line + "\n"
-		}
-	}
-	if err := json.Unmarshal([]byte(bs), &config); err != nil {
-		return nil, err
-	}
-	return &config, nil
-}
-
 func main() {
 	var configFilePath string
 	var watchMode bool
 	var logLevel string
-	var config *RoflcoptorConfig
+	var config *common.RoflcoptorConfig
 	var level logging.Level
 	var err error
 
@@ -154,7 +117,7 @@ func main() {
 	signal.Notify(sigKillChan, os.Interrupt, os.Kill)
 
 	log.Notice("roflcoptor startup!")
-	proxyListener := NewProxyListener(config, watchMode)
+	proxyListener := proxy.NewProxyListener(config, watchMode)
 	proxyListener.StartListeners()
 	defer proxyListener.StopListeners()
 	for {
