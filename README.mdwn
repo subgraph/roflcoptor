@@ -91,11 +91,10 @@ ExecStartPre=/bin/chown roflcoptor /var/run/roflcoptor
 ExecStart=/usr/local/bin/roflcoptor -watch -config /etc/roflcoptor/roflcoptor_config.json
 ```
 
-NOTE: The ``-watch`` flag was passed to roflcoptor so that applications which do not have a policy yet such as
-Oz sandboxed applications will operate in watch-mode where the policy is pass-thru and all other applications
-will have their filter policy applied. We must resolve ticket https://github.com/subgraph/oz/issues/37
-and implement the Oz UNIX domain socket proxy!
-
+NOTE: The ``-watch`` flag was passed to roflcoptor so that
+applications which do not have a policy yet will operate in watch-mode
+where the policy is pass-thru and all other applications will have
+their filter policy applied.
 
 
 Create and chown the roflcoptor related directories:
