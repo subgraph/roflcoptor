@@ -110,17 +110,7 @@ The json configuration file, /etc/roflcoptor/roflcoptor_config.json should look 
 {
     "FiltersPath" : "/etc/roflcoptor/filters",
     "TorControlNet" : "unix",
-    "TorControlAddress" : "/var/run/tor/control",
-    "Listeners" : [
-	{
-	    "Net" : "unix",
-	    "Address" : "/var/run/roflcoptor/roflcoptor.socket"
-	},
-	{
-	    "Net" : "tcp",
-	    "Address" : "127.0.0.1:9051"
-	}
-    ]
+    "TorControlAddress" : "/var/run/tor/control"
 }
 ```
 
