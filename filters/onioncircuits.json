@@ -22,6 +22,7 @@
       "250-version=",
       "250+circuit-status=",
       "250+stream-status=",
+      "250-stream-status=",
       "250+ns/id/",
       "650 STREAM",
       "250 UseMicrodescriptors",
